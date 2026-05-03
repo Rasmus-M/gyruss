@@ -1,0 +1,23 @@
+mode_1:
+       rt
+
+init_table:
+       rt
+
+read_register:
+       rt
+
+write_register:
+       rt
+
+write_vram:
+       rt
+
+fill_vram:
+       rt
+
+load_ascii:
+       rt
+
+decoder:
+       rt
