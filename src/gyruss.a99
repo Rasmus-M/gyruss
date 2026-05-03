@@ -1137,6 +1137,7 @@ _8267:                                 ; >8267
        jeq  _82a0                      ; JR Z,$82A0        ; then skip ahead
        inc  bc                         ; INC BC            ; Otherwise copy one more byte '_WARPS'
 _82a0:                                 ; >82a0
+       equ  $
        .ldir                           ; LDIR              ; Make the copy
        li   hl,to_msg                  ; LD HL,$85A2       ; Copy _TO_ message
        li   bc,>0004                   ; LD BC,$0004       ; 4 bytes
