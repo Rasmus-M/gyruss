@@ -1,0 +1,4 @@
+       copy "main-code.a99"
+
+upper_memory_max:
+       equ  $

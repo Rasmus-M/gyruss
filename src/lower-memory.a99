@@ -1,0 +1,9 @@
+       copy "variables.a99"
+       copy "ti-tables.a99"
+       copy "polar-to-screen-table.a99"
+       copy "graphics.a99"
+       copy "ti-routines.a99"
+       copy "cv-routines.a99"
+
+lower_memory_max:
+       equ  $

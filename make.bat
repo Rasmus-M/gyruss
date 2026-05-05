@@ -1,1 +1,1 @@
-xas99.py -R -q -L gyruss.lst src/main.a99
+xas99.py -R -q -L gyruss.lst -E symbols.txt src/gyruss.a99

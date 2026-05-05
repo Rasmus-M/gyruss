@@ -1,6 +1,0 @@
-       copy "macros.a99"
-       copy "equates.a99"
-       copy "ti-tables.a99"
-       copy "gyruss.a99"
-       copy "ti-routines.a99"
-       copy "cv-routines.a99"
