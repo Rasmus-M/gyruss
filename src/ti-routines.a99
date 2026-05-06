@@ -12,7 +12,7 @@ ti_setup_environment:
        .proc
        bl   @init_bits
 ;      bl   @copy_to_pad
-       bl   @graphics_mode
+;      bl   @graphics_mode
        .endproc
 *// ti_setup_environment
 

@@ -79,25 +79,25 @@
 
        .defm rst
        .ifeq #1,8
-       b    @add_a_to_hl               ; JP $9AB3          ; Add A to HL
+       .call @add_a_to_hl              ; JP $9AB3          ; Add A to HL
        .endif
        .ifeq #1,16
-       b    @vdp_write_byte            ; JP $9AC3          ; Write VDP byte (DE = address, A = value)
+       .call @vdp_write_byte           ; JP $9AC3          ; Write VDP byte (DE = address, A = value)
        .endif
        .ifeq #1,24
-       b    @write_register            ; JP $1FD9          ; WRITE_REGISTER (B = reg, C = value)
+       .call @write_register           ; JP $1FD9          ; WRITE_REGISTER (B = reg, C = value)
        .endif
        .ifeq #1,32
-       b    @rnd                       ; JP $BFAE          ; Random number generator
+       .call @rnd                      ; JP $BFAE          ; Random number generator
        .endif
        .ifeq #1,40
-       b    @allocate_sprite           ; JP $AD49          ; Allocate_sprite
+       .call @allocate_sprite          ; JP $AD49          ; Allocate_sprite
        .endif
        .ifeq #1,48
-       b    @load_sprite_pattern       ; JP $AD8B          ; Load sprite pattern
+       .call @load_sprite_pattern      ; JP $AD8B          ; Load sprite pattern
        .endif
        .ifeq #1,56
-       b    @write_vram                ; JP $1FDF          ; WRITE_VRAM (HL = source, DE = dest, BC = count)
+       .call @write_vram               ; JP $1FDF          ; WRITE_VRAM (HL = source, DE = dest, BC = count)
        .endif
        .endm
 

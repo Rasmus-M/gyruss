@@ -1,23 +1,112 @@
 mode_1:
-       rt
+       li   r0,>0000
+       bl   @vwtr
+       li   r0,>01e0
+       bl   @vwtr
+       li   r0,>0701
+       bl   @vwtr
+* Sprite attribute table
+       li   a,>0000
+       li   hl,>1b00
+       .call @init_table
+* Sprite generator table
+       li   a,>0100
+       li   hl,>3800
+       .call @init_table
+* Pattern name table
+       li   a,>0200
+       li   hl,>1800
+       .call @init_table
+* Pattern generator table
+       li   a,>0300
+       li   hl,>0000
+       .call @init_table
+* Pattern color table
+       li   a,>0400
+       li   hl,>2000
+       .call @init_table
+       .ret
 
 init_table:
-       rt
+       movb a,r1
+       srl  r1,8
+       sla  r1,1
+       mov  hl,@sat_vdp_address(r1)
+       cb   a,@bytes+>00
+       jne  init_table_1
+* Sprite attribute table
+       srl  hl,7
+       li   r0,>0500
+       soc  hl,r0
+       jmp  init_table_2
+init_table_1:
+       cb   a,@bytes+>01
+       jne  init_table_3
+* Sprite generator table
+       srl  hl,11
+       li   r0,>0600
+       soc  hl,r0
+       jmp  init_table_2
+init_table_2:
+       cb   a,@bytes+>02
+       jne  init_table_4
+* Pattern name table
+       srl  hl,10
+       li   r0,>0200
+       soc  hl,r0
+       jmp  init_table_2
+init_table_3:
+       cb   a,@bytes+>03
+       jne  init_table_5
+* Pattern generator table
+       srl  hl,11
+       li   r0,>0400
+       soc  hl,r0
+       jmp  init_table_2
+init_table_4:
+       cb   a,@bytes+>04
+       jne  init_table_6
+* Pattern color table
+       srl  hl,6
+       li   r0,>0400
+       soc  hl,r0
+       jmp  init_table_2
+init_table_5:
+       bl   @vwtr
+init_table_6:
+       .ret
 
 read_register:
-       rt
+       movb @vdp_status,a
+       .ret
 
 write_register:
-       rt
+       movb bc,r0
+       bl   @vwtr
+       .ret
 
 write_vram:
-       rt
+       mov  hl,r1
+       mov  de,r0
+       mov  bc,r2
+       bl   @vmbw
+       .ret
 
 fill_vram:
-       rt
+       mov  hl,r0
+       mov  a,r1
+       mov  de,r2
+       bl   @vsmw
+       .ret
 
 load_ascii:
-       rt
+       mov  @pattern_generator_vdp_address,r0
+       ai   r0,32*8
+       li   r1,ascii_patterns
+       li   r2,(128-32)*8
+       bl   @vmbw
+       .ret
 
 decoder:
-       rt
+;      TODO
+       .ret

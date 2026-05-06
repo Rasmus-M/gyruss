@@ -2,7 +2,6 @@
        copy "equates.a99"
 
        aorg >2000
-       b    @entry
        copy "lower-memory.a99"
 
        aorg >a000

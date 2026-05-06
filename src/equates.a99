@@ -32,7 +32,7 @@ ti_r0lb:
 ti_r1lb:
        equ  ti_wrksp+3
 wrksp:
-       equ  ti_wrksp+>1A               ; tmp0-tmp2 overlaps ti_wrksp r13-r15
+       equ  ti_wrksp+>1a               ; r0-r2 overlaps ti_wrksp r13-r15
 r0lb:
        equ  wrksp+1
 r1lb:

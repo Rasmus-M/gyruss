@@ -687,8 +687,17 @@ sat_vdp_address:                       ; >73f2
        data >0000
 
 * Sprite pattern table VDP address
+sprite_pattern_generator_vdp_address:
        data >0000
 
 * Name table VDP address
 name_table_vdp_address:                ; >73f6
+       data >0000
+
+* Pattern generator table VDP address
+pattern_generator_vdp_address:
+       data >0000
+
+* Color table address VDP address
+color_table_vdp_address:
        data >0000
