@@ -134,5 +134,21 @@ load_ascii:
        .ret
 
 decoder:
-;      TODO
-       .ret
+       clr  hl
+       li   r0,>0606
+       bl   @ti_check_key
+       jeq  !
+       socb @bytes+>40,h
+!      tb   1                          ; Left
+       jeq  !
+       socb @bytes+>08,@l
+!      tb   2                          ; Right
+       jeq  !
+       socb @bytes+>02,@l
+!      tb   3                          ; Down
+       jeq  !
+       socb @bytes+>04,@l
+!      tb   4                          ; Up
+       jeq  !
+       socb @bytes+>01,@l
+!      .ret
