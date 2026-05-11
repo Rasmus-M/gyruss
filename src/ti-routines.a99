@@ -571,11 +571,21 @@ ti_vsync_1:
 * CPU space clear
 *
 ti_clear:
-       clr  r0
-clear_1:
+       mov  hl,r0
+       andi r0,1
+       jeq  ti_clear_1
        movb r0,*hl+
        dec  bc
-       jne  clear_1
+       mov  bc,r0
+       srl  bc,1
+ti_clear_1:
+       clr  *hl+
+       dec  bc
+       jne  ti_clear_1
+       andi r0,1
+       jeq  ti_clear_2
+       movb r0,*hl+
+ti_clear_2:
        rt
 *// ti_clear
 

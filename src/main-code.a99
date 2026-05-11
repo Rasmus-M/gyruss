@@ -44,9 +44,9 @@ new_game:                              ; >8064
        li   de,frame_counter           ; LD DE,$71F2       ; To $7256
        sb   a,a                        ; XOR A             ; ...
        movb a,*hl                      ; LD (HL),A         ; ...
-       li   bc,>0065                   ; LD BC,$0065       ; ...
+       li   bc,other_flags-current_player ; LD BC,$0065       ; ...
        .ldir                           ; LDIR              ; ...
-       movb @status_flags,a            ; LD A,($71EB)      ; Clear all but two-player flag
+       movb @status_flags,a            ; LD A,($71EB)      ; Clear all flags but two-player flag
        andi a,>8000                    ; AND $80           ; ...
        movb a,@status_flags            ; LD ($71EB),A      ; ...
        movb @bytes+>05,a               ; LD A,$05          ; 5 Lives
@@ -56,13 +56,12 @@ new_game:                              ; >8064
        movb a,@score_extra_life_2_msb  ; LD ($71FE),A      ; Set #R$71FC+2 to 6 (extra life at 60000)
        movb one,a                      ; LD A,$01          ; Stage
        movb a,@stage                   ; LD ($7200),A      ; Set to 1
-       .call @init_center_enemies      ; CALL $AA7D        ; Init variables
+       .call @init_center_enemies      ; CALL $AA7D        ; Init center enemies
        li   hl,stage_msg               ; LD HL,$853C       ; Display stage message
        li   de,>1af8                   ; LD DE,$1AF8       ; ...
        li   bc,>0005                   ; LD BC,$0005       ; ...
        .rst >38                        ; RST $38           ; WRITE_VRAM
        li   de,>1802                   ; LD DE,$1802       ; Display '1' at the top left corner
-_80b5:                                 ; >80b5
        movb @bytes+>31,a               ; LD A,$31          ; ...
        .rst >10                        ; RST $10           ; Write VDP byte
        inc  de                         ; INC DE            ; Display '-' next to '1'
@@ -82,13 +81,13 @@ _80b5:                                 ; >80b5
        .rst >10                        ; RST $10           ; Write VDP byte
        movb one,a                      ; LD A,$01          ;
        .call @display_score            ; CALL $A699        ; Display score player 2
-       li   hl,lives                   ; LD HL,$71FF       ; Save player data in VDP RAM, starting with lives?
+       li   hl,lives                   ; LD HL,$71FF       ; Save player data in VDP RAM, starting with lives
        li   de,>1300                   ; LD DE,$1300       ; VDP address
-       li   bc,>002d                   ; LD BC,$002D       ; 45 bytes
+       li   bc,active_enemies-lives    ; LD BC,$002D       ; 45 bytes
        .rst >38                        ; RST $38           ; WRITE_VRAM
 _80e0:                                 ; >80e0
-       movb r,a                        ; LD A,R            ; Random number seed
-       movb a,@random_number+>0001     ; LD ($731C),A      ; Init random number
+;       movb r,a                        ; LD A,R            ; Random number seed
+;       movb a,@random_number+>0001     ; LD ($731C),A      ; Init random number
        .call @init_stage               ; CALL $8212        ; Initialize stage
 
 * Main loop
@@ -336,16 +335,17 @@ _8267:                                 ; >8267
        andi a,>0e00                    ; AND $0E           ; Clamp to 0, 2, 4, 6, 8, 10, 12
        li   hl,planet_table            ; LD HL,$9398       ; Base planet table
        .rst >08                        ; RST $08           ; Add A to HL
-       movb *hl,@e                     ; LD E,(HL)         ; Get LSB of planet data
-       inc  hl                         ; INC HL            ; To MSB
-       movb *hl,d                      ; LD D,(HL)         ; Get MSB of planet data
+;       movb *hl,@e                     ; LD E,(HL)         ; Get LSB of planet data
+;       inc  hl                         ; INC HL            ; To MSB
+;       movb *hl,d                      ; LD D,(HL)         ; Get MSB of planet data
+       mov  *hl,de
        li   hl,>0010                   ; LD HL,$0010       ; Planet name offset is 16
        a    de,hl                      ; ADD HL,DE         ; Add planet data address
        .push hl                        ; PUSH HL           ; Save it
        li   de,buffer+>0001            ; LD DE,$71A4       ; Buffer address for the string #R$71A3+1
        movb b,a                        ; LD A,B            ; Restore stage
-       andi a,>0300                    ; AND $03           ; Clamp to 0, 1, 2, 3 (0 not an option?)
-       cb   a,@bytes+>03               ; CP $03            ; If 3 we have reached it's a chance stage
+       andi a,>0300                    ; AND $03           ; Clamp to 0, 1, 2, 3
+       cb   a,@bytes+>03               ; CP $03            ; If 3 we have reached a chance stage
        jeq  _82bf                      ; JR Z,$82BF        ; Then jump ahead
        li   r0,3*256                   ; XOR $03           ; Flip the bits, so we know how many warps TO the planet
        xor  r0,a                       ;
@@ -1850,8 +1850,9 @@ _8b0d:                                 ; >8b0d
 display_background_patterns:           ; >8b12
        movb @>02(iy),@l                ; LD L,(IY+$02)     ; Get name table address of 3 x 3 area to clear
        movb @>03(iy),h                 ; LD H,(IY+$03)     ; ...
-       movb h,a                        ; LD A,H            ; If zero
-       socb @l,a                       ; OR L              ; ...
+;       movb h,a                        ; LD A,H            ; If zero
+;       socb @l,a                       ; OR L              ; ...
+       mov  hl,hl
        jeq  _8b2d                      ; JR Z,$8B2D        ; Then skip ahead
 * Clear name table area
        movb @bytes+>03,@c              ; LD C,$03          ; 3 rows
@@ -1869,8 +1870,8 @@ _8b22:                                 ; >8b22
        sb   one,@c                     ; DEC C             ; Row counter
        jne  _8b1e                      ; JR NZ,$8B1E       ; Outer loop
 _8b2d:                                 ; >8b2d
-       sb   @>02(iy),@>02(iy)          ; LD (IY+$02),$00   ; Reset name table address
-       sb   @>03(iy),@>03(iy)          ; LD (IY+$03),$00   ; ...
+       movb @zero,@>02(iy)             ; LD (IY+$02),$00   ; Reset name table address
+       movb @zero,@>03(iy)             ; LD (IY+$03),$00   ; ...
        movb @>04(iy),@l                ; LD L,(IY+$04)     ; Background patterns LSB
        movb @>05(iy),h                 ; LD H,(IY+$05)     ; Background patterns MSB
        movb h,a                        ; LD A,H            ; If both zero
@@ -1882,10 +1883,12 @@ _8b2d:                                 ; >8b2d
        .push iy                        ; PUSH IY           ; Save structure pointer
        .push hl                        ; PUSH HL           ; Save background patterns address
        li   hl,buffer                  ; LD HL,$71A3       ; Clear 72 bytes starting from #R$71A3
-       li   de,buffer+>0001            ; LD DE,$71A4       ; ...
-       li   bc,>0047                   ; LD BC,$0047       ; ...
-       sb   *hl,*hl                    ; LD (HL),$00       ; ...
-       .ldir                           ; LDIR              ; ...
+;       li   de,buffer+>0001            ; LD DE,$71A4       ; ...
+;       li   bc,>0047                   ; LD BC,$0047       ; ...
+;       sb   *hl,*hl                    ; LD (HL),$00       ; ...
+;       .ldir                           ; LDIR              ; ...
+       li   bc,>0048
+       bl   @ti_clear
        movb @>01(iy),a                 ; LD A,(IY+$01)     ; Get screen y
        andi a,>0700                    ; AND $07           ; Pixel offset y
        li   ix,buffer                  ; LD IX,$71A3       ; Cleared buffer
@@ -1923,7 +1926,7 @@ _8b7c:                                 ; >8b7c
        movb d,*ix                      ; LD (IX+$00),D     ; Save shifted bytes in buffer
        movb @e,@>18(ix)                ; LD (IX+$18),E     ; 3 patterns offset
 ;       movb @c,@>30(ix)                ; LD (IX+$30),C     ; ...
-       movb r0,@>30(ix)
+       movb r1,@>30(ix)
        inc  ix                         ; INC IX            ; Next destination address
        inc  iy                         ; INC IY            ; Next source address
        .pop bc                         ; POP BC            ; Restore counters
@@ -1933,9 +1936,10 @@ _8b7c:                                 ; >8b7c
        .pop iy                         ; POP IY            ;
        movb @>06(iy),@l                ; LD L,(IY+$06)     ; VDP pattern index (name)
        sb   h,h                        ; LD H,$00          ;
-       a    hl,hl                      ; ADD HL,HL         ; * 8
-       a    hl,hl                      ; ADD HL,HL         ; ...
-       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; * 8
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+       sla  hl,3
        .ex_de_hl                       ; EX DE,HL          ; DE now VDP address in pattern table
        li   hl,buffer                  ; LD HL,$71A3       ; Source address
        li   bc,>0048                   ; LD BC,$0048       ; 72 bytes (9 patterns)
@@ -1945,12 +1949,14 @@ _8b7c:                                 ; >8b7c
        andi a,>f800                    ; AND $F8           ; Round to characters
        movb a,@l                       ; LD L,A            ; HL = A
        sb   h,h                        ; LD H,$00          ; ...
-       a    hl,hl                      ; ADD HL,HL         ; * 4 = row offset in name table
-       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; * 4 = row offset in name table
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+       sla  hl,2
        movb *iy,a                      ; LD A,(IY+$00)     ; Get screen x
-       srl  a,1                        ; SRL A             ; / 8 = column offset in name table
-       srl  a,1                        ; SRL A             ; ...
-       srl  a,1                        ; SRL A             ; ...
+;       srl  a,1                        ; SRL A             ; / 8 = column offset in name table
+;       srl  a,1                        ; SRL A             ; ...
+;       srl  a,1                        ; SRL A             ; ...
+       srl  a,3
        sb   one,a                      ; DEC A             ; -1 (start one column before)
        movb a,@e                       ; LD E,A            ; DE = A
        sb   d,d                        ; LD D,$00          ; ...
@@ -3736,7 +3742,8 @@ vdp_read_byte:                         ; >9ad0
 *
 * Used by the routine at #R$82BF.
 initial_game_loop:                     ; >a33b
-       li   hl,_80b5                   ; LD HL,$80B5       ; New center of projection at bottom center for
+       bl   @ti_vsync
+       li   hl,>80b5                   ; LD HL,$80B5       ; New center of projection at bottom center for
                                                            ; implosion
        mov  hl,@tmp_center_of_projection ; LD ($72C5),HL     ; Set #R$72C5, which will be copied to #R$7000
        li   hl,status_flags            ; LD HL,$71EB       ; Status flags
@@ -3747,8 +3754,8 @@ initial_game_loop:                     ; >a33b
 _a34c:                                 ; >a34c
        .rst >28                        ; RST $28           ; Allocate sprite
        movb @bytes+>0d,*ix             ; LD (IX+$00),$0D   ; Sprite type is $0D (a dot)
-       sb   @>01(ix),@>01(ix)          ; LD (IX+$01),$00   ; Polar y
-       sb   @>02(ix),@>02(ix)          ; LD (IX+$02),$00   ; Polar x
+       movb @zero,@>01(ix)             ; LD (IX+$01),$00   ; Polar y
+       movb @zero,@>02(ix)             ; LD (IX+$02),$00   ; Polar x
        .rst >30                        ; RST $30           ; Load sprite pattern
        movb @bytes+>16,@>01(ix)        ; LD (IX+$01),$16   ; Polar y
        movb *iy,a                      ; LD A,(IY+$00)     ; Get init data
@@ -3926,7 +3933,7 @@ _a4a4:                                 ; >a4a4
        a    de,ix                      ; ADD IX,DE         ; Next sprite
        sb   one,b                      ; DJNZ $A47D        ; Loop 32 times
        jne  _a47d                      ;
-       li   hl,entry_wait_fire+>0019   ; LD HL,$8060       ; Set #R$7000 back to original value
+       li   hl,>8060                   ; LD HL,$8060       ; Set #R$7000 back to original value
        mov  hl,@center_of_projection   ; LD ($7000),HL     ; ...
        .ret                            ; RET               ;
 
@@ -4402,8 +4409,8 @@ display_ship_background_patterns:      ; >a808
        .push iy                        ; PUSH IY           ;
        li   iy,ship_background_data    ; LD IY,$722E       ; Buffer for generated structure
        movb @bytes+>18,@>06(iy)        ; LD (IY+$06),$18   ;
-       sb   @>04(iy),@>04(iy)          ; LD (IY+$04),$00   ; Patterns address LSB
-       sb   @>05(iy),@>05(iy)          ; LD (IY+$05),$00   ; Patterns address MSB
+       movb @zero,@>04(iy)             ; LD (IY+$04),$00   ; Patterns address LSB
+       movb @zero,@>05(iy)             ; LD (IY+$05),$00   ; Patterns address MSB
        movb @sprite_data+>0001,a       ; LD A,($7003)      ; Ship's polar y
        cb   a,@bytes+>15               ; CP $15            ;
        jhe  _a85a                      ; JR NC,$A85A       ; Jump if >= 21
@@ -4429,9 +4436,10 @@ display_ship_background_patterns:      ; >a808
                                                            ; apart
        movb a,@l                       ; LD L,A            ; HL = A
        sb   h,h                        ; LD H,$00          ; ...
-       a    hl,hl                      ; ADD HL,HL         ; x2
-       a    hl,hl                      ; ADD HL,HL         ; x4
-       a    hl,hl                      ; ADD HL,HL         ; x8, now 32 bytes apart
+;       a    hl,hl                      ; ADD HL,HL         ; x2
+;       a    hl,hl                      ; ADD HL,HL         ; x4
+;       a    hl,hl                      ; ADD HL,HL         ; x8, now 32 bytes apart
+       sla  hl,3
        li   de,ship_patterns           ; LD DE,$A87D       ; Table of ship background patterns (32 bytes per frame)
        a    de,hl                      ; ADD HL,DE         ; Add to offset
        movb @l,@>04(iy)                ; LD (IY+$04),L     ; Save LSB
@@ -5013,8 +5021,8 @@ _ad64:                                 ; >ad64
        movb @c,*hl                     ; LD (HL),C         ; Record sprite index in table
 _ad75:                                 ; >ad75
        .pop ix                         ; POP IX            ; IX now holds sprite address
-       sb   @>07(ix),@>07(ix)          ; LD (IX+$07),$00   ; Init sprite
-       sb   @>03(ix),@>03(ix)          ; LD (IX+$03),$00   ; Set counter to 0
+       movb @zero,@>07(ix)             ; LD (IX+$07),$00   ; Init sprite
+       movb @zero,@>03(ix)             ; LD (IX+$03),$00   ; Set counter to 0
        movb @b255,@>04(ix)             ; LD (IX+$04),$FF   ; Set loaded patten index to none
        movb @bytes+>f8,@>08(ix)        ; LD (IX+$08),$F8   ; Set y
 _ad87:                                 ; >ad87
@@ -5058,21 +5066,23 @@ load_sprite_pattern:                   ; >ad8b
        ab   one,@e                     ; INC E             ; Else set E = 3
 _adb7:                                 ; >adb7
        movb @e,a                       ; LD A,E            ; A = pattern index
+       inc  hl                         ; (changed since high endian)
        cb   a,*hl                      ; CP (HL)           ; Compare with control word LSB (number of patterns for
                                                            ; sprite type)
        jl   _adbd                      ; JR C,$ADBD        ; Jump if number of patterns > pattern index (?)
        movb *hl,a                      ; LD A,(HL)         ; Get number of patterns
        sb   one,a                      ; DEC A             ; Minus 1
 _adbd:                                 ; >adbd
-       inc  hl                         ; INC HL            ; Advance to MSB (transformation)
+       dec  hl                         ; INC HL            ; Advance to MSB (transformation) (changed since high endian)
        movb *hl,b                      ; LD B,(HL)         ; B = transformation
        movb a,@c                       ; LD C,A            ; C = number of patterns - 1
        movb @>02(ix),a                 ; LD A,(IX+$02)     ; Get polar x
        ab   @bytes+>02,a               ; ADD A,$02         ; Plus 2
        andi a,>3f00                    ; AND $3F           ; Mod 64
        movb a,@>05(ix)                 ; LD (IX+$05),A     ; Save in sprite data
-       ab   one,b                      ; INC B             ; If transformation = 0
-       sb   one,b                      ; DEC B             ; ...
+;       ab   one,b                      ; INC B             ; If transformation = 0
+;       sb   one,b                      ; DEC B             ; ...
+       movb b,b
        jne  _add1                      ; JR NZ,$ADD1       ; Then skip ahead
        sb   a,a                        ; XOR A             ; Else set A = 0
        jmp  _add7                      ; JR $ADD7          ; And skip ahead
@@ -5094,23 +5104,27 @@ _add7:                                 ; >add7
        a    hl,hl                      ; ADD HL,HL         ; * 2
        li   de,sprite_pattern_vdp_addrs_table ; LD DE,$72E0       ; Table address
        a    de,hl                      ; ADD HL,DE         ; #R$72E0 + sprite type * 2
-       movb *hl,@e                     ; LD E,(HL)         ; Get LSB of VDP address
-       inc  hl                         ; INC HL            ; TO MSB
-       movb *hl,d                      ; LD D,(HL)         ; Get MSB of VDP address
+;       movb *hl,@e                     ; LD E,(HL)         ; Get LSB of VDP address
+;       inc  hl                         ; INC HL            ; TO MSB
+;       movb *hl,d                      ; LD D,(HL)         ; Get MSB of VDP address
+       mov  *hl,de
        movb b,@l                       ; LD L,B            ; HL = Index of pattern to fetch within sprite type
        sb   h,h                        ; LD H,$00          ; ...
-       a    hl,hl                      ; ADD HL,HL         ; Multiply by 8
-       a    hl,hl                      ; ADD HL,HL         ; ...
-       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; Multiply by 8
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+       sla  hl,3
        a    de,hl                      ; ADD HL,DE         ; And add base VDP address
        .ex_de_hl                       ; EX DE,HL          ; Move HL into DE, which becomes source address
        li   hl,buffer                  ; LD HL,$71A3       ; Buffer
        li   bc,>0008                   ; LD BC,$0008       ; Read 8 bytes
        .call @read_vram                ; CALL $1FE2        ; READ_VRAM
+       clr  af
        movb @>0a(ix),a                 ; LD A,(IX+$0A)     ; Get pattern
-       ab   a,a                        ; ADD A,A           ; Multiply by 8
-       ab   a,a                        ; ADD A,A           ; ...
-       ab   a,a                        ; ADD A,A           ; ...
+;       ab   a,a                        ; ADD A,A           ; Multiply by 8
+;       ab   a,a                        ; ADD A,A           ; ...
+;       ab   a,a                        ; ADD A,A           ; ...
+       sla  a,3
        movb a,@e                       ; LD E,A            ; ...
        movb @bytes+>08,d               ; LD D,$08          ; DE = $800 + pattern * 8
        li   hl,buffer                  ; LD HL,$71A3       ; Source
@@ -5322,16 +5336,17 @@ upload_sprite_patterns_end:
 * address of rotate pattern in #R$72DE. Used by the routine at #R$AE94.
 rotate:                                ; >af6b
        mov  @pattern_address,hl        ; LD HL,($72DE)     ; HL = source address
-       .push hl                        ; PUSH HL           ; Copy source into IY
-       .pop iy                         ; POP IY            ; ...
+;       .push hl                        ; PUSH HL           ; Copy source into IY
+;       .pop iy                         ; POP IY            ; ...
+       mov  hl,iy
        li   de,>0008                   ; LD DE,$0008       ; HL = destination address
        a    de,hl                      ; ADD HL,DE         ; ...
        mov  hl,@pattern_address        ; LD ($72DE),HL     ; Store destination
-;       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
-_af7a:                                 ; >af7a
-       li   r0,1
-       clr  r2
+       li   r0,1                       ; Number of bits to shift
 rotate_1:
+       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
+       clr  r2                         ; Result
+_af7a:                                 ; >af7a
 ;       sla  *iy,1                      ; RL (IY+$00)       ; Shift bit 7 of source byte 0 into carry
 ;       sra  *hl,1                      ; RR (HL)           ; Shift carry into bit 7 of destination byte
 ;       sla  @>01(iy),1                 ; RL (IY+$01)       ; x2
@@ -5348,20 +5363,20 @@ rotate_1:
 ;       sra  *hl,1                      ; RR (HL)           ; ...
 ;       sla  @>07(iy),1                 ; RL (IY+$07)       ; x8
 ;       sra  *hl,1                      ; RR (HL)           ; ...
-       srl  r2,1
-       movb *iy+,r1
-       sla  r1,0
+       srl  r2,1                       ; Shift result right
+       movb *iy+,r1                    ; Get source byte
+       sla  r1,0                       ; Shift bit n into carry
        jnc  !
-       socb @bytes+>80,r2
-!      inc  r0
+       socb @bytes+>80,r2              ; Set msb of result
+!      sb   one,b                      ; DJNZ $AF7A        ; Repeat 8 times
+       jne  _af7a                      ;
+       movb r2,*hl+                    ; Save result
+       ai   iy,-8                      ; Move source back to start
+;       inc  hl                         ; INC HL            ; Next destination
+       inc  r0                         ; Move to next bit
        ci   r0,8
        jle  rotate_1
-       ai   iy,-8
-       movb r2,*hl+
-;       inc  hl                         ; INC HL            ; Next destination
-       sb   one,b                      ; DJNZ $AF7A        ; Repeat 8 times
-       jne  _af7a                      ;
-       .ret                            ; RET               ;
+        .ret                            ; RET               ;
 
 * Flip pattern vertically
 *
@@ -5601,11 +5616,12 @@ polar_to_screen:                       ; >b1c6
        movb a,@l                       ; LD L,A            ; Calculate table address, with polar y = -11
                                                            ; corresponding to row 0
        sb   h,h                        ; LD H,$00          ; and polar y = 0 corresponding to row 11
-       a    hl,hl                      ; ADD HL,HL         ; (y + 11) * 32
-       a    hl,hl                      ; ADD HL,HL         ; ...
-       a    hl,hl                      ; ADD HL,HL         ; ...
-       a    hl,hl                      ; ADD HL,HL         ; ...
-       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; (y + 11) * 32
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; ...
+       sla  hl,5
        movb @e,a                       ; LD A,E            ; x
        movb @e,r0                      ; BIT 4,E           ; Is bit 4 set (top left or lower right quadrants)?
        andi r0,>1000                   ;
@@ -5635,10 +5651,11 @@ _b1de:                                 ; >b1de
        movb a,r0                       ; BIT 4,A           ; Test bit 4 (top of screen)
        andi r0,>1000                   ;
        movb *hl,a                      ; LD A,(HL)         ; Get table value
+       movb r0,r0
        jeq  _b1fd                      ; JR Z,$B1FD        ; Skip negating if not top of screen
        neg a                           ; NEG               ; -table value
 _b1fd:                                 ; >b1fd
-       ab   *ix,a                      ; ADD A,(IX+$00)    ; +center y ($60)
+       ab   @>01(ix),a                 ; ADD A,(IX+$00)    ; +center y ($60) (changed since high endian)
        sb   @bytes+>04,a               ; SUB $04           ; -4 (adjust for sprite size)
        movb a,d                        ; LD D,A            ; Store as sprite y
        inc  hl                         ; INC HL            ; Next table address
@@ -5648,7 +5665,7 @@ _b1fd:                                 ; >b1fd
        jne  _b20b                      ; JR NZ,$B20B       ; Skip negating if right
        neg a                           ; NEG               ; -table value
 _b20b:                                 ; >b20b
-       ab   @>01(ix),a                 ; ADD A,(IX+$01)    ; +center x ($80 or $B5 or ?)
+       ab   *ix,a                      ; ADD A,(IX+$01)    ; +center x ($80 or $B5 or ?) (changed since high endian)
        sb   @bytes+>04,a               ; SUB $04           ; -4 (adjust for sprite size)
        movb a,@e                       ; LD E,A            ; Store as sprite x
 ;       socb a,a                        ; OR A              ; Clear carry flag
