@@ -1897,40 +1897,45 @@ _8b2d:                                 ; >8b2d
        a    de,ix                      ; ADD IX,DE         ; Buffer address
        movb *iy,a                      ; LD A,(IY+$00)     ; Get screen x
        andi a,>0700                    ; AND $07           ; Pixel offset x
-       movb a,b                        ; LD B,A            ; B = pixel offset (counter for outer loop)
-       movb @bytes+>10,@c              ; LD C,$10          ; C = 16 (counter for inner loop)
+;       movb a,b                        ; LD B,A            ; B = pixel offset (counter for inner loop)
+       clr  r0
+       movb a,@r0lb
+;       movb @bytes+>10,@c              ; LD C,$10          ; C = 16 (counter for outer loop)
+       movb @bytes+>10,b
        .pop iy                         ; POP IY            ; Restore background patterns address
 _8b66:                                 ; >8b66
-       .push bc                        ; PUSH BC           ; Save counters
-;       sb   @c,@c                      ; LD C,$00          ; C = 0
-       clr  r1
+;       .push bc                        ; PUSH BC           ; Save counters
+       sb   @c,@c                      ; LD C,$00          ; C = 0
        movb *iy,d                      ; LD D,(IY+$00)     ; D = byte from left column of pattern
        movb @>10(iy),@e                ; LD E,(IY+$10)     ; E = byte from right column of pattern
 ;       ab   one,b                      ; INC B             ; If pixel offset = 0
 ;       sb   one,b                      ; DEC B             ; ...
-       movb b,b
+;       movb b,b
+       mov  r0,r0
        jeq  _8b7c                      ; JR Z,$8B7C        ; Then skip shifting
-_8b73:                                 ; >8b73
+;_8b73:                                 ; >8b73
 ;       socb a,a                        ; OR A              ; Clear carry?
-       sra  d,1                        ; RR D              ; Shift first byte
-       ; RR E                          ; RR E              ; Shift second byte
-       ; RR C                          ; RR C              ; Shift third byte
-       jnc  !
-       srl  r1,1
-       socb @bytes+>80,r1
-       jmp  !!
-!      srl  r1,1
-!      sb   one,b                      ; DJNZ $8B73        ; Repeat 'pixel offset' times (inner loop)
-       jne  _8b73                      ;
+;       sra  d,1                        ; RR D              ; Shift first byte
+;       RR E                            ; RR E              ; Shift second byte
+;       RR C                            ; RR C              ; Shift third byte
+;       sb   one,b                      ; DJNZ $8B73        ; Repeat 'pixel offset' times (inner loop)
+;       jne  _8b73                      ;
+       mov de,r1
+       movb @e,r2
+       movb @c,@r2lb
+       srl r1,0
+       mov r1,de
+       srl r2,0
+       movb @r2lb,@c
 _8b7c:                                 ; >8b7c
        movb d,*ix                      ; LD (IX+$00),D     ; Save shifted bytes in buffer
        movb @e,@>18(ix)                ; LD (IX+$18),E     ; 3 patterns offset
-;       movb @c,@>30(ix)                ; LD (IX+$30),C     ; ...
-       movb r1,@>30(ix)
+       movb @c,@>30(ix)                ; LD (IX+$30),C     ; ...
        inc  ix                         ; INC IX            ; Next destination address
        inc  iy                         ; INC IY            ; Next source address
-       .pop bc                         ; POP BC            ; Restore counters
-       sb   one,@c                     ; DEC C             ; Repeat 16 times
+;       .pop bc                         ; POP BC            ; Restore counters
+;       sb   one,@c                     ; DEC C             ; Repeat 16 times
+       sb   one,b                      ; DEC C             ; Repeat 16 times
        jne  _8b66                      ; JR NZ,$8B66       ; Outer loop
 * Update pattern table
        .pop iy                         ; POP IY            ;

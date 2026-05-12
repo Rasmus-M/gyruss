@@ -37,6 +37,8 @@ r0lb:
        equ  wrksp+1
 r1lb:
        equ  wrksp+3
+r2lb:
+       equ  wrksp+5
 bits:
        equ  wrksp+>20
 stack:
