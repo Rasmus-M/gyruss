@@ -154,7 +154,7 @@ sprite_countdown:                      ; >71ee
 * Countdown to enemy shooting
 *
 * Reset to 2nd byte of stage data. See #R$8541.
-countdown_at_shoot:                    ; >71ef
+countdown_to_shoot:                    ; >71ef
        byte >00
 
 * Time to next wave
@@ -568,6 +568,8 @@ center_enemies_redraw:                 ; >72cc
 * Counts from $00 up to $24. Updated each frame.
 center_enemy_processed:                ; >72cd
        byte >00
+
+       even
 
 * First name used for center enemies 1
 center_enemies_name_1:                 ; >72ce
