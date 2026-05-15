@@ -106,10 +106,10 @@ main_loop:                             ; >80e8
        .call @process_sprites          ; CALL $85E6        ; Process sprites
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
 ;       .call @handle_collisions        ; CALL $9796        ; Handle collisions
-;       .call @create_or_display_mines  ; CALL $8E2D        ;
+       .call @create_or_display_mines  ; CALL $8E2D        ;
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
        .call @manage_waves             ; CALL $8BD9        ; Manage waves
-;       .call @create_sprite_from_map_entry ; CALL $AAF1        ; Create sprite from map entry
+       .call @create_sprite_from_map_entry ; CALL $AAF1        ; Create sprite from map entry
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
 ;       .call @create_laser_fence_or_meteor ; CALL $8D50        ; Create laser fence
        .call @next_frame_upl_sprites   ; CALL $84B1        ; Upload sprites
@@ -1299,21 +1299,21 @@ move_towards_viewer:                   ; >8825
 handle_out_of_screen:                  ; >8835
        movb @>07(ix),r0                ; BIT 3,(IX+$07)    ; If a flag is reset
        andi r0,>0800                   ;
-       jeq  _8848                      ; JR Z,$8848        ; Then skip ahead and determine what to do
+       jeq  handle_out_of_screen_2     ; JR Z,$8848        ; Then skip ahead and determine what to do
 * This entry point is used by the routine at #R$8848.
-_883b:                                 ; >883b
+handle_out_of_screen_1:                ; >883b
        movb @bytes+>2a,@>01(ix)        ; LD (IX+$01),$2A   ; Reset polar y back to center
        movb @zero,@>02(ix)             ; LD (IX+$02),$00   ; Reset polar x
        movb @bytes+>40,@>07(ix)        ; LD (IX+$07),$40   ; Set flags
        .ret                            ; RET               ; Return to #R$8A41
-_8848:                                 ; >8848
+handle_out_of_screen_2:                ; >8848
        movb @>07(ix),r0                ; BIT 4,(IX+$07)    ; Test flag
        andi r0,>1000                   ;
-       jeq  _8853                      ; JR Z,$8853        ; If not set, skip ahead
+       jeq  handle_out_of_screen_3     ; JR Z,$8853        ; If not set, skip ahead
        .rst >20                        ; RST $20           ; Random number
        andi a,>0300                    ; AND $03           ; 0 - 3
-       jne  _883b                      ; JR NZ,$883B       ; If not 0, jump back
-_8853:                                 ; >8853
+       jne  handle_out_of_screen_1     ; JR NZ,$883B       ; If not 0, jump back
+handle_out_of_screen_3:                ; >8853
 ;       li   hl,active_enemies          ; LD HL,$722C       ; Decrement active enemies
 ;       sb   one,*hl                    ; DEC (HL)          ; ...
        sb   one,@active_enemies
@@ -3712,7 +3712,7 @@ add_a_to_hl:                           ; >9ab3
        clr  r0
        movb a,@r0lb
        a    r0,hl
-       .ret                            ; RET               ;
+       rt                              ; RET               ;
 
 * VDP write byte (RST $10)
 *
@@ -3728,7 +3728,7 @@ vdp_write_byte:                        ; >9ac3
        movb a,@vdpwa                   ; OUT ($BF),A       ; Set MSB of VDP address
        .pop af                         ; POP AF            ;
        movb a,@vdpwd                   ; OUT ($BE),A       ; Write byte
-       .ret                            ; RET               ;
+       rt                              ; RET               ;
 
 * VDP read byte
 *
@@ -4573,13 +4573,15 @@ _aadf:                                 ; >aadf
 *
 * I:HL Address in #R$7207
 deallocate_map_entry:                  ; >aae3
-       .push hl                        ; PUSH HL           ; Save map address
+;       .push hl                        ; PUSH HL           ; Save map address
        movb @b255,*hl                  ; LD (HL),$FF       ; Set entry to $FF
-       li   hl,center_enemies_redraw   ; LD HL,$72CC       ; Set flag
-       socb @bits+0,*hl                ; SET 0,(HL)        ; ...
-       li   hl,center_map_entries      ; LD HL,$722B       ; Decrement number of entries
-       sb   one,*hl                    ; DEC (HL)          ; ...
-       .pop hl                         ; POP HL            ; Restore map address
+;       li   hl,center_enemies_redraw   ; LD HL,$72CC       ; Set flag
+;       socb @bits+0,*hl                ; SET 0,(HL)        ; ...
+       socb @bits+0,@center_enemies_redraw
+;       li   hl,center_map_entries      ; LD HL,$722B       ; Decrement number of entries
+;       sb   one,*hl                    ; DEC (HL)          ; ...
+       sb   one,@center_map_entries
+;       .pop hl                         ; POP HL            ; Restore map address
        .ret                            ; RET               ;
 
 * Create enemy sprite from map entry
@@ -4588,39 +4590,30 @@ deallocate_map_entry:                  ; >aae3
 * sprite with data from map. Used by the routine at #R$80E8.
 create_sprite_from_map_entry:          ; >aaf1
        movb @status_flags,a            ; LD A,($71EB)      ; Is all waves completed flag set?
-       movb a,r0                       ; BIT 1,A           ; ...
-       andi r0,>0200                   ;
-       jne  !                          ; RET Z             ; Return if not
-       .ret                            ;
-!
-       movb a,r0                       ; BIT 2,A           ; Is died flag set?
-       andi r0,>0400                   ;
-       jeq  !                          ; RET NZ            ; Return if so
-       .ret                            ;
-!
+       czc  @bit1,a                    ; BIT 1,A           ; ...
+       jeq  create_sprite_from_map_entry_2 ; RET Z             ; Return if not
+       czc  @bit2,a                    ; BIT 2,A           ; Is died flag set?
+       jne  create_sprite_from_map_entry_2 ; RET NZ            ; Return if so
        .call @stage_data_addr          ; CALL $84DB        ; Get stage data address in IY
        movb @active_enemies,a          ; LD A,($722C)      ; Get number of active enemies
        cb   a,@>04(iy)                 ; CP (IY+$04)       ; Compare with byte 4 of stage data
-       jl   !                          ; RET NC            ; Return if active enemies >= byte 4
-       .ret                            ;
-!
+       jhe  create_sprite_from_map_entry_2 ; RET NC            ; Return if active enemies >= byte 4
        movb @center_map_entries,a      ; LD A,($722B)      ; Get number of map entries
 ;       socb a,a                        ; OR A              ; Return if zero
-       jne  !                          ; RET Z             ; ...
-       .ret                            ;
-!
+       jeq  create_sprite_from_map_entry_2 ; RET Z             ; ...
        li   hl,center_enemy_map+>0023  ; LD HL,$722A       ; End of #R$7207
        movb @bytes+>24,b               ; LD B,$24          ; Size of map
        movb @bytes+>80,a               ; LD A,$80          ; Value to compare with
-_ab10:                                 ; >ab10
-       cb   a,*hl                      ; CP (HL)           ; Test byte
-       jhe  _ab17                      ; JR NC,$AB17       ; If >= $80 then skip ahead
+create_sprite_from_map_entry_1:        ; >ab10
+       cb   a,*hl                      ; CP (HL)           ; Test map byte
+       jhe  create_sprite_from_map_entry_3 ; JR NC,$AB17       ; If map byte <= $80 then found
        dec  hl                         ; DEC HL            ; Previous byte
        sb   one,b                      ; DJNZ $AB10        ; Loop through whole map
-       jne  _ab10                      ;
+       jne  create_sprite_from_map_entry_1 ;
+create_sprite_from_map_entry_2:
        .ret                            ; RET               ; Not found - return
 * Create sprite
-_ab17:                                 ; >ab17
+create_sprite_from_map_entry_3:        ; >ab17
        movb *hl,a                      ; LD A,(HL)         ; Get value from map
        .push af                        ; PUSH AF           ; Save it
        .call @deallocate_map_entry     ; CALL $AAE3        ; Deallocate map entry
@@ -4633,8 +4626,9 @@ _ab17:                                 ; >ab17
        movb a,@>0b(ix)                 ; LD (IX+$0B),A     ; Use it as color (may temporary since it's >= $80?)
        socb @bits+0,@>07(ix)           ; SET 0,(IX+$07)    ; Set flag
        .rst >30                        ; RST $30           ; Load sprite pattern
-       li   hl,active_enemies          ; LD HL,$722C       ; Increment number of active enemies
-       ab   one,*hl                    ; INC (HL)          ; ...
+;       li   hl,active_enemies          ; LD HL,$722C       ; Increment number of active enemies
+;       ab   one,*hl                    ; INC (HL)          ; ...
+       ab   one,@active_enemies
        .ret                            ; RET               ;
 
 * Sprite coordinates from map
@@ -4647,17 +4641,18 @@ _ab17:                                 ; >ab17
 * O:E Polar x
 polar_coord_from_map:                  ; >ab38
        .push hl                        ; PUSH HL           ; Save map address
-       li   de,center_enemy_map        ; LD DE,$7207       ; Base address of map
+;       li   de,center_enemy_map        ; LD DE,$7207       ; Base address of map
 ;       socb a,a                        ; OR A              ; Clear carry
-       s    de,hl                      ; SBC HL,DE         ; Map address - map base (offset 0 - 35)
+;       s    de,hl                      ; SBC HL,DE         ; Map address - map base (offset 0 - 35)
+       ai   hl,-center_enemy_map       ; SBC HL,DE         ; Map address - map base (offset 0 - 35)
        a    hl,hl                      ; ADD HL,HL         ; x2 = offset
-       li   de,start_coordinates_table ; LD DE,$AC87       ; Table address
-       a    de,hl                      ; ADD HL,DE         ; Add offset
+;       li   de,start_coordinates_table ; LD DE,$AC87       ; Table address
+       ai   hl,start_coordinates_table  ; ADD HL,DE         ; Add offset
        movb @x_counter,a               ; LD A,($72D4)      ; Get x counter
-       ab   *hl,a                      ; ADD A,(HL)        ; Add table value
+       ab   *hl+,a                     ; ADD A,(HL)        ; Add table value
        andi a,>3f00                    ; AND $3F           ; Mod 64
        movb a,@e                       ; LD E,A            ; Store in E
-       inc  hl                         ; INC HL            ; Next table address
+;      inc  hl                         ; INC HL            ; Next table address
        movb @y_counter,a               ; LD A,($72D3)      ; Get y counter
        ab   *hl,a                      ; ADD A,(HL)        ; Add table value
        movb a,d                        ; LD D,A            ; Store in D
@@ -5027,20 +5022,20 @@ allocate_sprite:                       ; >ad49
        li   de,>000c                   ; LD DE,$000C       ; Size of each sprite
        li   bc,>2000                   ; LD BC,$2000       ; Number of sprites and sprite index
        movb @bytes+>7e,a               ; LD A,$7E          ;
-_ad57:                                 ; >ad57
+allocate_sprite_1:                     ; >ad57
        cb   a,*hl                      ; CP (HL)           ;
-       jl   _ad64                      ; JR C,$AD64        ; If >= $7F ($FF from init), sprite is available
+       jl   allocate_sprite_2          ; JR C,$AD64        ; If >= $7F ($FF from init), sprite is available
        ab   one,@c                     ; INC C             ; Sprite index++
        a    de,hl                      ; ADD HL,DE         ; Advance to next sprite
        sb   one,b                      ; DJNZ $AD57        ; Loop for up to 32 sprites
-       jne  _ad57                      ;
+       jne  allocate_sprite_1          ;
        li   ix,>03e8                   ; LD IX,$03E8       ; Not found, set to address in ROM (?)
-       jmp  _ad87                      ; JR $AD87          ; And return
-_ad64:                                 ; >ad64
+       jmp  allocate_sprite_4          ; JR $AD87          ; And return
+allocate_sprite_2:                     ; >ad64
        .push hl                        ; PUSH HL           ; Save sprite address
        movb *hl,r0                     ; BIT 7,(HL)        ; Is bit 7 set, i.e. $FF?
        andi r0,>8000                   ;
-       jeq  _ad75                      ; JR Z,$AD75        ; If not, skip recoding in allocation table
+       jeq  allocate_sprite_3          ; JR Z,$AD75        ; If not, skip recoding in allocation table
        li   hl,allocated_sprites       ; LD HL,$7182       ; Allocated sprites
        ab   one,*hl                    ; INC (HL)          ; Record one more
        movb *hl,a                      ; LD A,(HL)         ; Read number back
@@ -5055,17 +5050,17 @@ _ad64:                                 ; >ad64
        movb a,@r0lb
        a    r0,hl
        movb @c,*hl                     ; LD (HL),C         ; Record sprite index in table
-_ad75:                                 ; >ad75
+allocate_sprite_3:                     ; >ad75
        .pop ix                         ; POP IX            ; IX now holds sprite address
        movb @zero,@>07(ix)             ; LD (IX+$07),$00   ; Init sprite
        movb @zero,@>03(ix)             ; LD (IX+$03),$00   ; Set counter to 0
        movb @b255,@>04(ix)             ; LD (IX+$04),$FF   ; Set loaded patten index to none
        movb @bytes+>f8,@>08(ix)        ; LD (IX+$08),$F8   ; Set y
-_ad87:                                 ; >ad87
+allocate_sprite_4:                     ; >ad87
        .pop bc                         ; POP BC            ;
        .pop de                         ; POP DE            ;
        .pop hl                         ; POP HL            ;
-       .ret                            ; RET               ;
+       rt                              ; RET               ;
 
 * Load sprite pattern (RST $30)
 *
@@ -5170,7 +5165,7 @@ _add7:                                 ; >add7
        movb @bytes+>08,d               ; LD D,$08          ; DE = $800 + pattern * 8
        li   hl,buffer                  ; LD HL,$71A3       ; Source
        li   bc,>0008                   ; LD BC,$0008       ; Write 8 bytes
-       .call @write_vram               ; CALL $1FDF        ; WRITE_VRAM
+       bl   @write_vram               ; CALL $1FDF        ; WRITE_VRAM
 _ae11:                                 ; >ae11
        movb *ix,a                      ; LD A,(IX+$00)     ; Get sprite type
        cb   a,one                      ; CP $01            ; If 1, i.e. ship exhaust
@@ -5329,7 +5324,7 @@ _af15:                                 ; >af15
        mov  @pattern_address,hl        ; LD HL,($72DE)     ; Source for writing to VDP RAM
        mov  @upload_destination,de     ; LD DE,($72D8)     ; Destination
        li   bc,>0008                   ; LD BC,$0008       ; 8 bytes
-       .call @write_vram               ; CALL $1FDF        ; WRITE_VRAM
+       bl   @write_vram               ; CALL $1FDF        ; WRITE_VRAM
        mov  @upload_destination,hl     ; LD HL,($72D8)     ; Get destination address
        li   bc,>0008                   ; LD BC,$0008       ; Add 8
        a    bc,hl                      ; ADD HL,BC         ; ...
@@ -5735,9 +5730,9 @@ rnd:                                   ; >bfae
        ; AND A                         ; AND A             ; Set flags
        ; JP PE,$BFC9                   ; JP PE,$BFC9       ; Skip ahead if even parity
        jop  !
-       jmp  _bfc9
+       jmp  rnd_1
 !      ab   one,@>01(ix)               ; INC (IX+$01)      ; Else increment byte 1
-_bfc9:                                 ; >bfc9
+rnd_1:                                 ; >bfc9
        movb a,*ix                      ; LD (IX+$00),A     ; Set byte 0
        .pop ix                         ; POP IX            ;
-       .ret                            ; RET               ;
+       rt                              ; RET               ;
