@@ -108,7 +108,7 @@ main_loop:                             ; >80e8
 ;       .call @handle_collisions        ; CALL $9796        ; Handle collisions
 ;       .call @create_or_display_mines  ; CALL $8E2D        ;
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
-;       .call @manage_waves             ; CALL $8BD9        ; Manage waves
+       .call @manage_waves             ; CALL $8BD9        ; Manage waves
 ;       .call @create_sprite_from_map_entry ; CALL $AAF1        ; Create sprite from map entry
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
 ;       .call @create_laser_fence_or_meteor ; CALL $8D50        ; Create laser fence
@@ -196,7 +196,7 @@ _8192:                                 ; >8192
        jne  !                          ; JP Z,$81ED        ; If not, wait for restart
        b    @wait_for_restart          ;
 !
-       movb *hl,r0                     ; BIT 5,(HL)        ; Is one player already game over=
+       movb *hl,r0                     ; BIT 5,(HL)        ; Is one player already game over?
        andi r0,>2000                   ;
        jeq  !                          ; JP NZ,$81ED       ; If so, wait for restart
        b    @wait_for_restart          ;
@@ -212,7 +212,7 @@ switch_player:                         ; >81ae
        movb a,r0                       ; BIT 7,A           ; ...
        andi r0,>8000                   ;
        jeq  _81e2                      ; JR Z,$81E2        ; Skip ahead if one player
-       movb *hl,r0                     ; BIT 5,(HL)        ; Test for ?
+       movb *hl,r0                     ; BIT 5,(HL)        ; Is one player already game over?
        andi r0,>2000                   ;
        jne  _81e2                      ; JR NZ,$81E2       ; Skip ahead if not set
 * This entry point is used by the routine at #R$8170.
@@ -442,6 +442,7 @@ display_player:                        ; >830e
        .ret                            ;
 !
        movb @bytes+>32,a               ; LD A,$32          ; ASCII 2
+       li   de,>1933                   ; LD DE,$1933       ; VDP address
        li   de,>1933                   ; LD DE,$1933       ; VDP address
        .rst >10                        ; RST $10           ; Write VDP byte
        .ret                            ; RET               ;
@@ -859,7 +860,7 @@ game_over_msg:                         ; >85dd
 process_sprites:                       ; >85e6
        li   hl,sprite_countdown        ; LD HL,$71EE       ; Decrement counter 1
        sb   one,*hl                    ; DEC (HL)          ; ...
-       li   hl,sprite_countdown_2      ; LD HL,$7260       ; Decrement counter 2
+       li   hl,attack_countdown      ; LD HL,$7260       ; Decrement counter 2
        sb   one,*hl                    ; DEC (HL)          ; ...
        movb @countdown_to_shoot,a      ; LD A,($71EF)      ; Decrement counter stopping at 0
        sb   one,a                      ; DEC A             ; ...
@@ -1025,7 +1026,7 @@ handle_sprite_types_04_0c:             ; >867d
        ab   @bytes+>08,a               ; ADD A,$08         ; Add 8
        movb a,@>09(ix)                 ; LD (IX+$09),A     ; Set screen x of new sprite
        .pop bc                         ; POP BC            ; Pop return address
-       b    @_8a4e                     ; JP $8A4E          ; Jump back into sprite handler loop
+       b    @return_from_sprite_handler_1                     ; JP $8A4E          ; Jump back into sprite handler loop
 
 * Handle sprite type  $14
 *
@@ -1182,7 +1183,7 @@ handle_sprite_types_0e_11:             ; >8790
 * Sprite type $0E - $11 (enemies)
        movb @>07(ix),r0                ; BIT 7,(IX+$07)    ; Check bit 7 of flags
        andi r0,>8000                   ;
-       jeq  !                          ; JP NZ,$88FE       ; Update sprite path
+       jeq  !                          ; JP NZ,$88FE       ; If set, update sprite path
        b    @update_sprite_path        ;
 !
        movb @>01(ix),r0                ; BIT 7,(IX+$01)    ; Check bit 7 of polar y
@@ -1192,21 +1193,21 @@ handle_sprite_types_0e_11:             ; >8790
 !
        movb @>07(ix),r0                ; BIT 6,(IX+$07)    ; Check bit 6 of flags
        andi r0,>4000                   ;
-       jne  create_map_entry_for_sprite ; JR NZ,$87D5       ; Create map entry for enemy sprite
+       jne  create_map_entry_for_sprite ; JR NZ,$87D5       ; If set, create map entry for enemy sprite
        movb @>07(ix),r0                ; BIT 2,(IX+$07)    ; Check bit 2 of flags
        andi r0,>0400                   ;
-       jeq  !                          ; JP NZ,$8825       ; Move towards viewer
+       jeq  !                          ; JP NZ,$8825       ; If set, move towards viewer
        b    @move_towards_viewer       ;
 !
        movb @>07(ix),r0                ; BIT 0,(IX+$07)    ; Check bit 0 of flags
        andi r0,>0100                   ;
-       jeq  !                          ; JP NZ,$885F       ; Create enemy shot and ...
-       b    @_885f                     ;
+       jeq  !                          ; JP NZ,$885F       ; If set, create enemy shot and move
+       b    @create_enemy_shot_and_move ;
 !
-       movb @sprite_countdown_2,a      ; LD A,($7260)      ; Sprite countdown 2
+       movb @attack_countdown,a    ; LD A,($7260)          ; Attack countdown
 ;       socb a,a                        ; OR A              ; Return if not zero
        jne  !                          ; RET NZ            ; ...
-       .call @create_enemy_shot        ; CALL $8A76        ; Create enemy shot
+       .call @maybe_create_enemy_shot        ; CALL $8A76        ; Create enemy shot
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
        movb @sprite_data+>0002,a       ; LD A,($7004)      ; Ship polar x
        .call @move_towards_x           ; CALL $8AC0        ; Move towards x
@@ -1265,11 +1266,13 @@ _8811:                                 ; >8811
 * Used by the routine at #R$8801.
 *
 * I:IX Sprite data of enemy
+* I:HL Map address
 return_enemy_to_map:                   ; >8815
        movb @>0b(ix),a                 ; LD A,(IX+$0B)     ; Get color (why not pattern?)
        movb a,*hl                      ; LD (HL),A         ; Set in map
-       li   hl,active_enemies          ; LD HL,$722C       ; Decrease active enemies
-       sb   one,*hl                    ; DEC (HL)          ; ...
+;       li   hl,active_enemies          ; LD HL,$722C       ; Decrease active enemies
+;       sb   one,*hl                    ; DEC (HL)          ; ...
+       sb   one,@active_enemies        ; Decrease active enemies
        li   hl,other_flags             ; LD HL,$7256       ; Set a flag
        socb @bits+5,*hl                ; SET 5,(HL)        ; ...
        b    @deallocate_sprite         ; JP $862F          ; Deallocate sprite and return
@@ -1285,9 +1288,8 @@ move_towards_viewer:                   ; >8825
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
        cb   a,@bytes+>f2               ; CP $F2            ; Return if not $F2 (-14)
-       jeq  !                          ; RET NZ            ; Else continue into #R$8835
+       jeq  handle_out_of_screen       ; RET NZ            ; Else continue into #R$8835
        .ret                            ;
-!
 
 * Enemy movement: Determine action when out of screen
 *
@@ -1295,14 +1297,13 @@ move_towards_viewer:                   ; >8825
 *
 * I:IX Sprite data of enemy
 handle_out_of_screen:                  ; >8835
-       equ  $
        movb @>07(ix),r0                ; BIT 3,(IX+$07)    ; If a flag is reset
        andi r0,>0800                   ;
        jeq  _8848                      ; JR Z,$8848        ; Then skip ahead and determine what to do
 * This entry point is used by the routine at #R$8848.
 _883b:                                 ; >883b
        movb @bytes+>2a,@>01(ix)        ; LD (IX+$01),$2A   ; Reset polar y back to center
-       sb   @>02(ix),@>02(ix)          ; LD (IX+$02),$00   ; Reset polar x
+       movb @zero,@>02(ix)             ; LD (IX+$02),$00   ; Reset polar x
        movb @bytes+>40,@>07(ix)        ; LD (IX+$07),$40   ; Set flags
        .ret                            ; RET               ; Return to #R$8A41
 _8848:                                 ; >8848
@@ -1313,22 +1314,23 @@ _8848:                                 ; >8848
        andi a,>0300                    ; AND $03           ; 0 - 3
        jne  _883b                      ; JR NZ,$883B       ; If not 0, jump back
 _8853:                                 ; >8853
-       li   hl,active_enemies          ; LD HL,$722C       ; Decrement active enemies
-       sb   one,*hl                    ; DEC (HL)          ; ...
+;       li   hl,active_enemies          ; LD HL,$722C       ; Decrement active enemies
+;       sb   one,*hl                    ; DEC (HL)          ; ...
+       sb   one,@active_enemies
        li   hl,other_flags             ; LD HL,$7256       ; Set flag
        socb @bits+5,*hl                ; SET 5,(HL)        ; ...
        b    @deallocate_enemy          ; JP $8654          ; Deallocate and return
 
-* Enemy movement: Create enemy shot and move
+* Enemy movement: Create enemy shot and move towards player.
 *
 * Used by the routine at #R$8790. Called and jumped.
 *
 * I:IX Sprite data of enemy
-_885f:                                 ; >885f
-       .call @create_enemy_shot        ; CALL $8A76        ; Create enemy shot
+create_enemy_shot_and_move:            ; >885f
+       .call @maybe_create_enemy_shot        ; CALL $8A76        ; Create enemy shot
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
        cb   a,@bytes+>22               ; CP $22            ; Is it < $22
-       jl   _8878                      ; JR C,$8878        ; Then jump ahead
+       jlt  _8878                      ; JR C,$8878        ; Then jump ahead
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
        movb @bytes+>02,@>03(ix)        ; LD (IX+$03),$02   ; Set counter
        movb @bytes+>10,*ix             ; LD (IX+$00),$10   ; Set sprite type
@@ -1443,42 +1445,40 @@ update_sprite_path:                    ; >88fe
        jeq  !                          ; RET NZ            ;
        .ret                            ;
 !
-       .call @create_enemy_shot        ; CALL $8A76        ; Create enemy shot
+       .call @maybe_create_enemy_shot  ; CALL $8A76        ; Create enemy shot
        movb @>06(ix),@l                ; LD L,(IX+$06)     ; Get path address
        movb @>07(ix),h                 ; LD H,(IX+$07)     ; ...
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
 * This entry point is used by the routine at #R$892B.
-_890f:                                 ; >890f
+update_sprite_path_1:                  ; >890f
+       mov  a,r0
        sb   @bytes+>10,a               ; SUB $10           ; Decrement upper nybble
        movb a,@>03(ix)                 ; LD (IX+$03),A     ; Store again
-       jgt  move_animate_sprite_along_path ; JR NC,$8936       ; If upper nybble >= 0, then jump to move sprite
-       jeq  move_animate_sprite_along_path
+       cb   r0,@bytes+>10
+       jhe  move_animate_sprite_along_path ; JR NC,$8936   ; If upper nybble >= 0, then jump to move sprite
 * This entry point is used by the routine at #R$8986.
-_8916:                                 ; >8916
+update_sprite_path_2:                  ; >8916
        inc  hl                         ; INC HL            ; Else increment path address
        movb @l,@>06(ix)                ; LD (IX+$06),L     ; Set path address
        movb h,@>07(ix)                 ; LD (IX+$07),H     ; ...
        movb *hl,a                      ; LD A,(HL)         ; Get path byte
        cb   a,@bytes+>10               ; CP $10            ; If upper nybble >= 1
-       jhe  _892b                      ; JR NC,$892B       ; Then jump ahead to update counter
+       jhe  update_sprite_path_3       ; JR NC,$892B       ; Then jump ahead to update counter
        sb   one,a                      ; DEC A             ; Else decrement lower nybble
-       jhe  !                          ; JP M,$8986        ; If negative then set sprite flag to $18 if path byte
-       b    @set_sprite_flags_to_18_if_match ;
-!
-                                                           ; matches and return
+       jlt  set_sprite_flags_to_18_if_match ; JP M,$8986   ; If negative then set sprite flag to $18 if path byte matches and return
        jeq  set_sprite_flags_to_04     ; JR Z,$8994        ; If zero then set sprite flag to $04 and return
-       b    @set_sprite_flags_to_40    ; JP $8999          ; If positive then set sprite flag to $40 and return
+       jmp  set_sprite_flags_to_40     ; JP $8999          ; If positive then set sprite flag to $40 and return
 
 * Enemy movement: Upper nybble >= 1
 *
 * Used by the routine at #R$88FE.
-_892b:                                 ; >892b
+update_sprite_path_3:                  ; >892b
        andi a,>f000                    ; AND $F0           ; Isolate upper nybble
        movb a,b                        ; LD B,A            ; Save it
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
        andi a,>0f00                    ; AND $0F           ; And apply upper nybble
        socb b,a                        ; OR B              ; ...
-       jmp  _890f                      ; JR $890F          ; Jump back into #R$88FE
+       jmp  update_sprite_path_1       ; JR $890F          ; Jump back into #R$88FE
 
 * Enemy movement: Move sprite along path and update sprite type
 *
@@ -1491,47 +1491,43 @@ move_animate_sprite_along_path:        ; >8936
        mov  @wave_data_address,hl      ; LD HL,($725D)     ; Get wave data address
        movb @>03(ix),r0                ; BIT 0,(IX+$03)    ; If bit 0 of counter is reset
        andi r0,>0100                   ;
-       jeq  _8941                      ; JR Z,$8941        ; Then skip moving to next byte
+       jeq  move_animate_sprite_along_path_1 ; JR Z,$8941  ; Then skip moving to next byte
        inc  hl                         ; INC HL            ; Else move to next byte
-_8941:                                 ; >8941
+move_animate_sprite_along_path_1:      ; >8941
        movb *hl,r0                     ; BIT 7,(HL)        ; Is bit 7 reset
        andi r0,>8000                   ;
-       jeq  _8951                      ; JR Z,$8951        ; Then skip ahead
+       jeq  move_animate_sprite_along_path_2 ; JR Z,$8951  ; Then skip ahead
        andi a,>0f00                    ; AND $0F           ; Isolate bits 0-3
        cb   a,one                      ; CP $01            ; If 1 (inc polar y)
-       jeq  _8951                      ; JR Z,$8951        ; Then skip ahead
+       jeq  move_animate_sprite_along_path_2 ; JR Z,$8951  ; Then skip ahead
        cb   a,@bytes+>04               ; CP $04            ; If 4 (dec polar y)
-       jeq  _8951                      ; JR Z,$8951        ; Then skip ahead
-       li   r0,10*256                  ; XOR $0A           ; Else flip bits 1 and 3
+       jeq  move_animate_sprite_along_path_2 ; JR Z,$8951  ; Then skip ahead
+       li   r0,>0a00                   ; XOR $0A           ; Else flip bits 1 and 3
        xor  r0,a                       ;
-_8951:                                 ; >8951
+move_animate_sprite_along_path_2:      ; >8951
        movb @>02(ix),@e                ; LD E,(IX+$02)     ; Get polar x
        movb @>01(ix),d                 ; LD D,(IX+$01)     ; Get polar y
        movb *ix,b                      ; LD B,(IX+$00)     ; Get sprite type
-       movb a,r0                       ; BIT 0,A           ; If bit for incrementing polar y is reset
-       andi r0,>0100                   ;
-       jeq  _8961                      ; JR Z,$8961        ; Then skip next
+       czc  @bit0,a                    ; BIT 0,A           ; If bit for incrementing polar y is reset
+       jeq  move_animate_sprite_along_path_3 ; JR Z,$8961  ; Then skip next
        ab   one,d                      ; INC D             ; Increment polar y
        movb @bytes+>0e,b               ; LD B,$0E          ; Sprite type $0E
-_8961:                                 ; >8961
-       movb a,r0                       ; BIT 2,A           ; If bit for decrementing polar y is reset
-       andi r0,>0400                   ;
-       jeq  _8968                      ; JR Z,$8968        ; Then skip next
+move_animate_sprite_along_path_3:      ; >8961
+       czc  @bit2,a                    ; BIT 2,A           ; If bit for decrementing polar y is reset
+       jeq  move_animate_sprite_along_path_4 ; JR Z,$8968  ; Then skip next
        sb   one,d                      ; DEC D             ; Decrement polar y
        movb @bytes+>10,b               ; LD B,$10          ; Sprite type $10
-_8968:                                 ; >8968
-       movb a,r0                       ; BIT 1,A           ; If bit for decrementing polar x is reset
-       andi r0,>0200                   ;
-       jeq  _896f                      ; JR Z,$896F        ; Then skip next
+move_animate_sprite_along_path_4:      ; >8968
+       czc  @bit1,a                    ; BIT 1,A           ; If bit for decrementing polar x is reset
+       jeq  move_animate_sprite_along_path_5 ; JR Z,$896F  ; Then skip next
        sb   one,@e                     ; DEC E             ; Decrement polar x
        movb @bytes+>0f,b               ; LD B,$0F          ; Sprite type $0F
-_896f:                                 ; >896f
-       movb a,r0                       ; BIT 3,A           ; If bit for incrementing polar x is reset
-       andi r0,>0800                   ;
-       jeq  _8976                      ; JR Z,$8976        ; Then skip next
+move_animate_sprite_along_path_5:      ; >896f
+       czc  @bit3,a                    ; BIT 3,A           ; If bit for incrementing polar x is reset
+       jeq  move_animate_sprite_along_path_6 ; JR Z,$8976  ; Then skip next
        ab   one,@e                     ; INC E             ; Increment polar x
        movb @bytes+>11,b               ; LD B,$11          ; Sprite type $11
-_8976:                                 ; >8976
+move_animate_sprite_along_path_6:      ; >8976
        movb b,*ix                      ; LD (IX+$00),B     ; Set sprite type
        movb d,@>01(ix)                 ; LD (IX+$01),D     ; Set polar y
        movb @e,a                       ; LD A,E            ; Polar x
@@ -1551,7 +1547,7 @@ set_sprite_flags_to_18_if_match:       ; >8986
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
        andi a,>0f00                    ; AND $0F           ; Isolate sprite position in wave
        cb   a,*hl                      ; CP (HL)           ; Compare with path byte
-       jne  _8916                      ; JR NZ,$8916       ; If different, then jump back to #R$88FE
+       jne  update_sprite_path_2       ; JR NZ,$8916       ; If different, then jump back to #R$88FE
        movb @bytes+>18,@>07(ix)        ; LD (IX+$07),$18   ; Set flags
        .ret                            ; RET               ; Return to #R$8A41
 
@@ -1636,43 +1632,39 @@ move_sprite_along_path:                ; >89eb
        mov  @wave_data_address,hl      ; LD HL,($725D)     ; Get wave data address
        movb @>03(ix),r0                ; BIT 0,(IX+$03)    ; If bit 0 of counter is reset
        andi r0,>0100                   ;
-       jeq  _89f6                      ; JR Z,$89F6        ; Then skip moving to next byte
+       jeq  move_sprite_along_path_1   ; JR Z,$89F6        ; Then skip moving to next byte
        inc  hl                         ; INC HL            ; Else move to next byte
-_89f6:                                 ; >89f6
+move_sprite_along_path_1:              ; >89f6
        movb *hl,r0                     ; BIT 7,(HL)        ; Is bit 7 reset
        andi r0,>8000                   ;
-       jeq  _8a06                      ; JR Z,$8A06        ; Then skip ahead
+       jeq  move_sprite_along_path_2   ; JR Z,$8A06        ; Then skip ahead
        andi a,>0f00                    ; AND $0F           ; Isolate bits 0-3
        cb   a,one                      ; CP $01            ; If 1 (inc polar y)
-       jeq  _8a06                      ; JR Z,$8A06        ; Then skip ahead
+       jeq  move_sprite_along_path_2   ; JR Z,$8A06        ; Then skip ahead
        cb   a,@bytes+>04               ; CP $04            ; If 4 (dec polar y)
-       jeq  _8a06                      ; JR Z,$8A06        ; Then skip ahead
-       li   r0,10*256                  ; XOR $0A           ; Else flip bits 1 and 3
+       jeq  move_sprite_along_path_2   ; JR Z,$8A06        ; Then skip ahead
+       li   r0,>a000                   ; XOR $0A           ; Else flip bits 1 and 3
        xor  r0,a                       ;
-_8a06:                                 ; >8a06
+move_sprite_along_path_2:              ; >8a06
        movb @>02(ix),@e                ; LD E,(IX+$02)     ; Get polar x
        movb @>01(ix),d                 ; LD D,(IX+$01)     ; Get polar y
 * Identical to code at #R$895A except doesn't set sprite type
-       movb a,r0                       ; BIT 0,A           ; If bit for incrementing polar y is reset
-       andi r0,>0100                   ;
-       jeq  _8a11                      ; JR Z,$8A11        ; Then skip next
+       czc  @bit0,a                   ; BIT 0,A           ; If bit for incrementing polar y is reset
+       jeq  move_sprite_along_path_3   ; JR Z,$8A11        ; Then skip next
        ab   one,d                      ; INC D             ; Increment polar y
-_8a11:                                 ; >8a11
-       movb a,r0                       ; BIT 2,A           ; If bit for decrementing polar y is reset
-       andi r0,>0400                   ;
-       jeq  _8a16                      ; JR Z,$8A16        ; Then skip next
+move_sprite_along_path_3:              ; >8a11
+       czc  @bit2,a                   ; BIT 2,A           ; If bit for decrementing polar y is reset
+       jeq  move_sprite_along_path_4   ; JR Z,$8A16        ; Then skip next
        sb   one,d                      ; DEC D             ; Decrement polar y
-_8a16:                                 ; >8a16
-       movb a,r0                       ; BIT 1,A           ; If bit for decrementing polar x is reset
-       andi r0,>0200                   ;
-       jeq  _8a1b                      ; JR Z,$8A1B        ; Then skip next
+move_sprite_along_path_4:              ; >8a16
+       czc  @bit1,a                   ; BIT 1,A           ; If bit for decrementing polar x is reset
+       jeq  move_sprite_along_path_5   ; JR Z,$8A1B        ; Then skip next
        sb   one,@e                     ; DEC E             ; Decrement polar x
-_8a1b:                                 ; >8a1b
-       movb a,r0                       ; BIT 3,A           ; If bit for incrementing polar x is reset
-       andi r0,>0800                   ;
-       jeq  _8a20                      ; JR Z,$8A20        ; Then skip next
+move_sprite_along_path_5:              ; >8a1b
+       czc  @bit3,a                   ; BIT 3,A           ; If bit for incrementing polar x is reset
+       jeq  move_sprite_along_path_6   ; JR Z,$8A20        ; Then skip next
        ab   one,@e                     ; INC E             ; Increment polar x
-_8a20:                                 ; >8a20
+move_sprite_along_path_6:              ; >8a20
        movb d,@>01(ix)                 ; LD (IX+$01),D     ; Set polar y
        movb @e,a                       ; LD A,E            ; Polar x
        andi a,>3f00                    ; AND $3F           ; Mod 64
@@ -1706,14 +1698,14 @@ _8a3c:                                 ; >8a3c
 return_from_sprite_handler:            ; >8a41
        movb *ix,a                      ; LD A,(IX+$00)     ; Get sprite type
        cb   a,@>05(ix)                 ; CP (IX+$05)       ; Same as before?
-       jeq  _8a4e                      ; JR Z,$8A4E        ; Skip ahead if so
+       jeq  return_from_sprite_handler_1 ; JR Z,$8A4E        ; Skip ahead if so
        movb @b255,@>04(ix)             ; LD (IX+$04),$FF   ; Set loaded patten index to none
        .rst >30                        ; RST $30           ; Load sprite pattern
 * This entry point is used by the routine at #R$867D.
-_8a4e:                                 ; >8a4e
+return_from_sprite_handler_1:          ; >8a4e
        .pop hl                         ; POP HL            ; Restore sprite allocation table address
        inc  hl                         ; INC HL            ; Increment address
-       b    @process_next_sprite                     ; JP $8600          ; Jump back into loop at #R$8600
+       b    @process_next_sprite       ; JP $8600          ; Jump back into loop at #R$8600
 
 * When all sprites have been processed
 *
@@ -1726,8 +1718,8 @@ all_sprites_processed:                 ; >8a53
        movb *iy,a                      ; LD A,(IY+$00)     ; Reset to first byte of stage data (speed?)
        movb a,@sprite_countdown        ; LD ($71EE),A      ; ...
 _8a62:                                 ; >8a62
-       movb @sprite_countdown_2,a      ; LD A,($7260)      ; Get sprite countdown 2
-;       socb a,a                        ; OR A              ; Return is not zero
+       movb @attack_countdown,a      ; LD A,($7260)      ; Get sprite countdown 2
+;       socb a,a                        ; OR A              ; Return if not zero
        jeq  !                          ; RET NZ            ; ...
        .ret                            ;
 !
@@ -1736,17 +1728,16 @@ _8a62:                                 ; >8a62
        movb a,r0
        movb *iy,a                      ; LD A,(IY+$00)     ; Get first byte of stage data (speed?)
        cb   a,@bytes+>02
-       jgt  _8a72                      ; JR NC,$8A72       ; If stage index >= 2, then skip ahead
-       jeq  _8a72
+       jhe  _8a72                      ; JR NC,$8A72       ; If stage index >= 2, then skip ahead
        ab   a,a                        ; ADD A,A           ; Else multiply by 2
 _8a72:                                 ; >8a72
-       movb a,@sprite_countdown_2      ; LD ($7260),A      ; Save sprite countdown 2
+       movb a,@attack_countdown      ; LD ($7260),A      ; Save sprite countdown 2
        .ret                            ; RET               ; Return from sprite processing
 
-* Create enemy shot
+* Create enemy shot if conditions are met
 *
 * Used by the routines at #R$8790, #R$885F and #R$88FE.
-create_enemy_shot:                     ; >8a76
+maybe_create_enemy_shot:               ; >8a76
        movb @countdown_to_shoot,a      ; LD A,($71EF)      ; Is countdown zero?
 ;       socb a,a                       ; OR A              ; ...
        jeq  !                          ; RET NZ            ; Return if not
@@ -2180,10 +2171,11 @@ _8ccf:                                 ; >8ccf
        movb a,@c                       ; LD C,A            ; BC = offset
        li   hl,wave_address_table      ; LD HL,$A581       ; Table base address
        a    bc,hl                      ; ADD HL,BC         ; Table address
-       movb *hl,a                      ; LD A,(HL)         ; Get LSB
-       inc  hl                         ; INC HL            ; Next table address
-       movb *hl,h                      ; LD H,(HL)         ; Get MSB
-       movb a,@l                       ; LD L,A            ; L = LSB
+;       movb *hl,a                      ; LD A,(HL)         ; Get LSB
+;       inc  hl                         ; INC HL            ; Next table address
+;       movb *hl,h                      ; LD H,(HL)         ; Get MSB
+;       movb a,@l                       ; LD L,A            ; L = LSB
+       mov  *hl,hl
        movb @l,@>06(ix)                ; LD (IX+$06),L     ; Store in sprite data (pointer to path data?)
        movb h,@>07(ix)                 ; LD (IX+$07),H     ; ...
        movb *hl,a                      ; LD A,(HL)         ; Get first byte
@@ -2193,12 +2185,15 @@ _8ccf:                                 ; >8ccf
        socb b,a                        ; OR B              ; OR bits 4-7
        movb a,@>03(ix)                 ; LD (IX+$03),A     ; Store in sprite data
        .rst >30                        ; RST $30           ; Load sprite pattern
-       li   hl,active_enemies          ; LD HL,$722C       ; Increment active enemies
-       ab   one,*hl                    ; INC (HL)          ; ...
-       li   hl,total_enemies           ; LD HL,$7206       ; Increment total enemies
-       ab   one,*hl                    ; INC (HL)          ; ...
-       li   hl,outcoming_enemies       ; LD HL,$725C       ; Increment outcoming enemies
-       ab   one,*hl                    ; INC (HL)          ; ...
+;       li   hl,active_enemies          ; LD HL,$722C       ; Increment active enemies
+;       ab   one,*hl                    ; INC (HL)          ; ...
+       ab   one,@active_enemies
+;       li   hl,total_enemies           ; LD HL,$7206       ; Increment total enemies
+;       ab   one,*hl                    ; INC (HL)          ; ...
+       ab   one,@total_enemies
+;       li   hl,outcoming_enemies       ; LD HL,$725C       ; Increment outcoming enemies
+;       ab   one,*hl                    ; INC (HL)          ; ...
+       ab   one,@outcoming_enemies
        movb @bytes+>09,b               ; LD B,$09          ; B = 9 enemies
        movb @status_flags,a            ; LD A,($71EB)      ; Is it chance stage?
        movb a,r0                       ; BIT 3,A           ; ...
@@ -2206,12 +2201,14 @@ _8ccf:                                 ; >8ccf
        jeq  _8d0d                      ; JR Z,$8D0D        ; If not, skip ahead
        movb @bytes+>0a,b               ; LD B,$0A          ; Else B = 10 enemies
 _8d0d:                                 ; >8d0d
-       movb *hl,a                      ; LD A,(HL)         ; Increased outcoming enemies
-       cb   a,b                        ; CP B              ; Compare with 9 or 10
+;       movb *hl,a                      ; LD A,(HL)         ; Increased outcoming enemies
+;       cb   a,b                        ; CP B              ; Compare with 9 or 10
+       cb   @outcoming_enemies,b
        jeq  !                          ; RET NZ            ; Return if all are not out
        .ret                            ;
 !
-       sb   *hl,*hl                    ; LD (HL),$00       ; Set outcoming enemies to 0
+;       sb   *hl,*hl                    ; LD (HL),$00       ; Set outcoming enemies to 0
+       movb @zero,@outcoming_enemies
        li   hl,other_flags             ; LD HL,$7256       ; Clear flag that was set
        szcb @bits+6,*hl                ; RES 6,(HL)        ; when the wave started
        .call @stage_data_addr          ; CALL $84DB        ; Get stage data address in IY
@@ -4953,55 +4950,68 @@ _acec:                                 ; >acec
 *
 * Used by the routines at #R$832A, #R$84B1, #R$90D6, #R$A33B and #R$A3E1.
 upload_sprite_data:                    ; >acf9
-       mov  @sat_vdp_address,de        ; LD DE,($73F2)     ; VDP address of sprite allocation table
-       li   hl,allocated_sprites       ; LD HL,$7182       ; Get number of allocated sprites
-       movb *hl,a                      ; LD A,(HL)         ; ...
-       movb a,b                        ; LD B,A            ; Store in B
-_ad02:                                 ; >ad02
-       .push bc                        ; PUSH BC           ; Save counter
-       inc  hl                         ; INC HL            ; Next allocation
-       movb *hl,a                      ; LD A,(HL)         ; Get sprite index
-       ab   a,a                        ; ADD A,A           ; * 2
-       ab   a,a                        ; ADD A,A           ; * 4
-       movb a,@c                       ; LD C,A            ;
-       ab   a,a                        ; ADD A,A           ; * 8
-       ab   @c,a                       ; ADD A,C           ; * 12 (may overflow?)
-       .push hl                        ; PUSH HL           ; Save sprite allocation table address
-       li   hl,sprite_data+>0008       ; LD HL,$700A       ; First y address in sprite data table
-       .rst >08                        ; RST $08           ; Add A to HL
-       li   bc,>0004                   ; LD BC,$0004       ; Write 4 bytes for each sprite
-       .push de                        ; PUSH DE           ; Save destination
-       .call @write_vram               ; CALL $1FDF        ; WRITE_VRAM
-       .pop hl                         ; POP HL            ; Restore destination
-       li   bc,>0004                   ; LD BC,$0004       ; Add 4 to destination
-       a    bc,hl                      ; ADD HL,BC         ; ...
-       .ex_de_hl                       ; EX DE,HL          ; ...
-       .pop hl                         ; POP HL            ; Restore sprite allocation table address
-       .pop bc                         ; POP BC            ; Restore counter
+;      mov  @sat_vdp_address,de        ; LD DE,($73F2)     ; VDP address of sprite allocation table
+;       li   hl,allocated_sprites       ; LD HL,$7182       ; Get number of allocated sprites
+;       movb *hl,a                      ; LD A,(HL)         ; ...
+;       movb a,b                        ; LD B,A            ; Store in B
+       movb @allocated_sprites,b       ; Get number of allocated sprites
+       li   hl,sprite_allocation_table
+       mov  @sat_vdp_address,r0
+       bl   @vwad
+upload_sprite_data_1:                  ; >ad02
+;       .push bc                        ; PUSH BC           ; Save counter
+;       inc  hl                         ; INC HL            ; Next allocation
+;       movb *hl,a                      ; LD A,(HL)         ; Get sprite index
+;       ab   a,a                        ; ADD A,A           ; * 2
+;       ab   a,a                        ; ADD A,A           ; * 4
+;       movb a,@c                       ; LD C,A            ;
+;       ab   a,a                        ; ADD A,A           ; * 8
+;       ab   @c,a                       ; ADD A,C           ; * 12 (may overflow?)
+;       .push hl                        ; PUSH HL           ; Save sprite allocation table address
+;       li   hl,sprite_data+>0008       ; LD HL,$700A       ; First y address in sprite data table
+;       .rst >08                        ; RST $08           ; Add A to HL
+;       li   bc,>0004                   ; LD BC,$0004       ; Write 4 bytes for each sprite
+;       .push de                        ; PUSH DE           ; Save destination
+;       .call @write_vram               ; CALL $1FDF        ; WRITE_VRAM
+;       .pop hl                         ; POP HL            ; Restore destination
+;       li   bc,>0004                   ; LD BC,$0004       ; Add 4 to destination
+;       a    bc,hl                      ; ADD HL,BC         ; ...
+;       .ex_de_hl                       ; EX DE,HL          ; ...
+;       .pop hl                         ; POP HL            ; Restore sprite allocation table address
+;       .pop bc                         ; POP BC            ; Restore counter
+       clr  r0
+       movb *hl+,@r0lb                 ; Sprite index * 12
+       li   r1,12                      ; ...
+       mpy  r1,r0                      ; ...
+       ai   r1,sprite_data+8           ; Add airst y address in sprite data table
+       movb *r1+,@vdpwd                ; Write 4 bytes to VDP
+       movb *r1+,@vdpwd                ; ...
+       movb *r1+,@vdpwd                ; ...
+       movb *r1+,@vdpwd                ; ...
        sb   one,b                      ; DJNZ $AD02        ; Loop for each sprite
-       jne  _ad02                      ;
-       movb @bytes+>d0,a               ; LD A,$D0          ; End marker byte
-       .rst >10                        ; RST $10           ; Write VDP byte
+       jne  upload_sprite_data_1                      ;
+;       movb @bytes+>d0,a               ; LD A,$D0          ; End marker byte
+;       .rst >10                        ; RST $10           ; Write VDP byte
+       movb @bytes+>d0,@vdpwd
        movb @allocated_sprites,a       ; LD A,($7182)      ; Get number of allocation sprites
        cb   a,@bytes+>05               ; CP $05            ; Is it < 5
-       jhe  !                          ; RET C             ; Then return
-       .ret                            ;
-!
+       jl   upload_sprite_data_2       ; RET C             ; Then return
 * Rotate sprite allocation table
        sb   @bytes+>04,a               ; SUB $04           ;
        movb a,@c                       ; LD C,A            ; Number of sprites above 4
        sb   b,b                        ; LD B,$00          ;
        .push bc                        ; PUSH BC           ;
-       li   hl,sprite_allocation_table+>0002 ; LD HL,$7185       ; From 2nd entry of allocation table
+       li   hl,sprite_allocation_table+2 ; LD HL,$7185       ; From 2nd entry of allocation table
        li   de,buffer                  ; LD DE,$71A3       ; To buffer
        li   bc,>0002                   ; LD BC,$0002       ; Copy 2 bytes
        .ldir                           ; LDIR              ;
-       li   de,sprite_allocation_table+>0002 ; LD DE,$7185       ; From 4th to 2nd entry of allocation table
+       li   de,sprite_allocation_table+2 ; LD DE,$7185       ; From 4th to 2nd entry of allocation table
        .pop bc                         ; POP BC            ; Copy number of sprites above 4 bytes
        .ldir                           ; LDIR              ;
        li   hl,buffer                  ; LD HL,$71A3       ; From buffer to end of allocation table
        li   bc,>0002                   ; LD BC,$0002       ; Copy 2 bytes
        .ldir                           ; LDIR              ;
+upload_sprite_data_2:
        .ret                            ; RET               ;
 
 * Allocate sprite (RST $28)
@@ -5642,7 +5652,7 @@ polar_to_screen:                       ; >b1c6
        clr  @carry
        movb @bytes+>0b,a               ; LD A,$0B          ; 11
        ab   d,a                        ; ADD A,D           ; Polar y + 11
-       jlt  _b217                      ; JP M,$B217        ; If this is 128 or more (polar y > 116 or polar y <
+       jlt  polar_to_screen_5          ; JP M,$B217        ; If this is 128 or more (polar y > 116 or polar y <
                                                            ; -11), then set position outside screen and return
        movb a,@l                       ; LD L,A            ; Calculate table address, with polar y = -11
                                                            ; corresponding to row 0
@@ -5654,11 +5664,10 @@ polar_to_screen:                       ; >b1c6
 ;       a    hl,hl                      ; ADD HL,HL         ; ...
        sla  hl,5
        movb @e,a                       ; LD A,E            ; x
-       movb @e,r0                      ; BIT 4,E           ; Is bit 4 set (top left or lower right quadrants)?
-       andi r0,>1000                   ;
-       jeq  _b1de                      ; JR Z,$B1DE        ; Jump if not
+       czc  @bit4,a                    ; BIT 4,E           ; Is bit 4 set (top left or lower right quadrants)?
+       jeq  polar_to_screen_1          ; JR Z,$B1DE        ; Jump if not
        inv  a                          ; CPL               ; Else invert (0 -> 15, 1 -> 14, etc.)
-_b1de:                                 ; >b1de
+polar_to_screen_1:                     ; >b1de
        andi a,>0f00                    ; AND $0F           ; Use the first 4 inverted bits
        ab   a,a                        ; ADD A,A           ; x2 (2 bytes per x)
 ;       ab   @l,a                       ; ADD A,L           ; Add to address
@@ -5672,7 +5681,7 @@ _b1de:                                 ; >b1de
        a    bc,hl                      ; ADD HL,BC         ; Add to address
        movb *hl,a                      ; LD A,(HL)         ; Get table value
        cb   a,@b255                    ; CP $FF            ; If $FF
-       jeq  _b217                      ; JR Z,$B217        ; Then set position outside screen and return
+       jeq  polar_to_screen_5          ; JR Z,$B217        ; Then set position outside screen and return
        li   ix,center_of_projection    ; LD IX,$7000       ; Center of projection
        movb @e,a                       ; LD A,E            ; x
        movb a,r0
@@ -5680,36 +5689,34 @@ _b1de:                                 ; >b1de
        ; XOR E                         ; XOR E             ; Bit 4 is now set if bit 5 (left/right) and bit 4 (top
        xor  r0,a                                           ; left/lower right) were different, i.e. top of screen
        movb a,r0                       ; BIT 4,A           ; Test bit 4 (top of screen)
-       andi r0,>1000                   ;
        clr  af
        movb *hl,a                      ; LD A,(HL)         ; Get table value
-       movb r0,r0
-       jeq  _b1fd                      ; JR Z,$B1FD        ; Skip negating if not top of screen
+       czc  @bit4,r0
+       jeq  polar_to_screen_2          ; JR Z,$B1FD        ; Skip negating if not top of screen
        neg a                           ; NEG               ; -table value
-_b1fd:                                 ; >b1fd
+polar_to_screen_2:                     ; >b1fd
        ab   @>01(ix),a                 ; ADD A,(IX+$00)    ; +center y ($60) (changed since high endian)
        sb   @bytes+>04,a               ; SUB $04           ; -4 (adjust for sprite size)
        movb a,d                        ; LD D,A            ; Store as sprite y
        inc  hl                         ; INC HL            ; Next table address
        movb *hl,a                      ; LD A,(HL)         ; Get table value
-       movb @e,r0                      ; BIT 5,E           ; Test bit 5 of x (left/right)
-       andi r0,>2000                   ;
-       jne  _b20b                      ; JR NZ,$B20B       ; Skip negating if right
+       czc  @bit5l,de                  ; BIT 5,E           ; Test bit 5 of x (left/right)
+       jne  polar_to_screen_3          ; JR NZ,$B20B       ; Skip negating if right
        neg a                           ; NEG               ; -table value
-_b20b:                                 ; >b20b
+polar_to_screen_3:                     ; >b20b
        ab   *ix,a                      ; ADD A,(IX+$01)    ; +center x ($80 or $B5 or ?) (changed since high endian)
        sb   @bytes+>04,a               ; SUB $04           ; -4 (adjust for sprite size)
        movb a,@e                       ; LD E,A            ; Store as sprite x
 ;       socb a,a                        ; OR A              ; Clear carry flag
-_b212:                                 ; >b212
+polar_to_screen_4:                      ; >b212
        .pop bc                         ; POP BC            ; Return
        .pop hl                         ; POP HL            ; ...
        .pop ix                         ; POP IX            ; ...
        .ret                            ; RET               ; ...
-_b217:                                 ; >b217
+polar_to_screen_5:                     ; >b217
        li   de,>f500                   ; LD DE,$F500       ; Set return position outside screen
        seto @carry                     ; SCF               ; Set carry flag
-       jmp  _b212                      ; JR $B212          ; To return
+       jmp  polar_to_screen_4          ; JR $B212          ; To return
 
 * Random number generator (RST $20)
 *

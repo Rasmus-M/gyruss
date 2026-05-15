@@ -313,7 +313,7 @@ bonus_enemies_hit:                     ; >7255
 * { $02 | Set when mines exist }
 * { $03 | Ever set? Reset when laser fence destroyed }
 * { $04 | Set when laser fence exists }
-* { $05 | Set when stage starts. Reset when wave starts. Set when enemy hit }
+* { $05 | Set when stage starts. Reset when wave starts. Set when enemy hit. Set when enemy returns to map. }
 * { $06 | Set when wave starts }
 * { $07 | Unused }
 * TABLE#
@@ -353,11 +353,11 @@ wave_data_address:                     ; >725d
 laser_meteor_countdown:                ; >725f
        byte >00
 
-* Sprite countdown 2
+* Enemy attack countdown
 *
 * Decremented when #R$85E6 is called, and it reset to first byte of level data
-* (x2) by #R$8A53. One action at #R$87C1 is only executed when counter is zero.
-sprite_countdown_2:                    ; >7260
+* (x2) by #R$8A53.
+attack_countdown:                  ; >7260
        byte >00
 
 * Laser fence end 2 polar x

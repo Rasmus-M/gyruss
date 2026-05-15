@@ -217,6 +217,7 @@ public class SkoolConverter {
                 }
                 break;
             case "bit":
+                // TODO: Use czc with a table of words: >8000, >4000, etc.
                 tms9900Line.setInstruction("movb " + getTMS9900Equivalent(opr2) + ",r0");
                 additionalLines.add(new TMS9900Line(TMS9900Line.Type.Instruction, null, "andi r0," + (hexOutput ? Util.tiHexString((1 << opr1.getValue()) * 256, true) : (1 << opr1.getValue()) + "*256")));
                 break;
