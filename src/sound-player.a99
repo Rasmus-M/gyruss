@@ -30,11 +30,11 @@ _9afc:                                 ; >9afc
 * I:A Index of tune (0 - 6)
 play_tune:                             ; >9b0d
        cb   a,@bytes+>07               ; CP $07            ; If tune index is 7
-       jeq  _9b19                      ; JR Z,$9B19        ; Then skip ahead
-       movb a,@tune_playing            ; LD ($727C),A      ; Else save tune index
+       jeq  play_tune_1                ; JR Z,$9B19        ; Then skip ahead
+       movb a,@tune_index              ; LD ($727C),A      ; Else save tune index
        li   hl,tune_data_buffer_1+>0007 ; LD HL,$7284       ; #R$727D+7
        movb @bytes+>02,*hl             ; LD (HL),$02       ; Set to 2
-_9b19:                                 ; >9b19
+play_tune_1:                           ; >9b19
        andi af,>ff00
 ;       sla  a,1                        ; RLCA              ; Multiply index by 8
 ;       sla  a,1                        ; RLCA              ; ...
@@ -47,33 +47,33 @@ _9b19:                                 ; >9b19
        li   ix,tune_data_buffer_1      ; LD IX,$727D       ; First tune data buffer
        movb @bytes+>04,b               ; LD B,$04          ; 4 channels
        movb @bytes+>0a,@e              ; LD E,$0A          ; 10 bytes each
-_9b2b:                                 ; >9b2b
-       movb *hl+,a                     ; LD A,(HL)         ; Get LSB
+play_tune_2:                           ; >9b2b
+       movb *hl+,a                     ; LD A,(HL)         ; Get LSB (MSB)
        movb a,@>02(ix)                 ; LD (IX+$01),A     ; Store in tune data buffer (changed since high endian)
 ;       inc  hl                         ; INC HL            ; Next table address
-       movb *hl+,a                      ; LD A,(HL)         ; Get MSB
+       movb *hl+,a                      ; LD A,(HL)         ; Get MSB (LSB)
        movb a,@>01(ix)                 ; LD (IX+$02),A     ; Store in tune data buffer (changed since high endian)
        movb one,@>05(ix)               ; LD (IX+$05),$01   ; Set countdown
 ;       inc  hl                         ; INC HL            ; Next table address
-       sb   @>09(ix),@>09(ix)          ; LD (IX+$09),$00   ; Countdown for relative jumps
+       movb @zero,@>09(ix)             ; LD (IX+$09),$00   ; Countdown for relative jumps
        a    de,ix                      ; ADD IX,DE         ; Next channel
        sb   one,b                      ; DJNZ $9B2B        ; Loop for 4 channels
-       jne  _9b2b                      ;
+       jne  play_tune_2                ;
        movb @bytes+>05,a               ; LD A,$05          ; Tune speed?
        movb a,@sound_player_countdown  ; LD ($727B),A      ; Init countdown
        movb a,@is_tune_playing         ; LD ($727A),A      ; Set a tune is playing
-       movb @tune_playing,a            ; LD A,($727C)      ; Get tune index
+       movb @tune_index,a              ; LD A,($727C)      ; Get tune index
        sb   one,a                      ; DEC A             ; Minus 1
-       jeq  _9b54                      ; JR Z,$9B54        ; If tune index was 1 then skip ahead and set C = 9
-       jlt  !                          ; RET P             ; If tune index was > 1 then return
-       .ret                            ;
-!
+       jeq  play_tune_3                ; JR Z,$9B54        ; If tune index was 1 then play sound fx 9
+       jgt  play_tune_5                ; RET P             ; If tune index was > 1 then return
        movb @bytes+>05,@c              ; LD C,$05          ; Set C = 5 (sound index)
-       jmp  _9b56                      ; JR $9B56          ; Skip next
-_9b54:                                 ; >9b54
+       jmp  play_tune_4                ; JR $9B56          ; Skip next
+play_tune_3:                           ; >9b54
        movb @bytes+>09,@c              ; LD C,$09          ; Set C = 9 (sound index)
-_9b56:                                 ; >9b56
-       b    @play_sound_no_checks      ; JP $9CB5          ; Play sound
+play_tune_4:                           ; >9b56
+       b    @play_sound_no_checks      ; JP $9CB5          ; Play sound fx
+play_tune_5:
+       .ret
 
 * Increase attenuation for all tune channels
 *
@@ -82,26 +82,24 @@ dampen_all_tune_channels:              ; >9b59
        li   ix,tune_data_buffer_1      ; LD IX,$727D       ; First tune data data buffer
        movb @bytes+>04,b               ; LD B,$04          ; 4 channels
        li   de,>000a                   ; LD DE,$000A       ; Size of sound data
-       movb @tune_playing,a            ; LD A,($727C)      ; Get tune index
+       movb @tune_index,a              ; LD A,($727C)      ; Get tune index
        cb   a,@bytes+>03               ; CP $03            ; If < 3
-       jl   _9b70                      ; JR C,$9B70        ; Then skip ahead
+       jl   dampen_all_tune_channels_1 ; JR C,$9B70        ; Then skip ahead
        movb @b255,a                    ; LD A,$FF          ; Else set first byte
        movb a,@tune_data_buffer_1      ; LD ($727D),A      ; of buffer to $FF (mute)
-       jmp  _9b82                      ; JR $9B82          ; and skip first channel
-_9b70:                                 ; >9b70
+       jmp  dampen_all_tune_channels_2 ; JR $9B82          ; and skip first channel
+dampen_all_tune_channels_1:            ; >9b70
        movb @>07(ix),a                 ; LD A,(IX+$07)     ; Get countdown for when to increase attenuation
        sb   one,a                      ; DEC A             ; and decrement
-       jgt  !                          ; JP M,$9B82        ; If it was 0 then move to next channel
-       b    @_9b82                     ;
-!
+       jlt  dampen_all_tune_channels_2 ; JP M,$9B82        ; If it was 0 then move to next channel
        movb a,@>07(ix)                 ; LD (IX+$07),A     ; Else save new value
        movb @>04(ix),a                 ; LD A,(IX+$04)     ; Get attenuation in bits 4-7
        ab   @bytes+>10,a               ; ADD A,$10         ; Add 1
        movb a,@>04(ix)                 ; LD (IX+$04),A     ; Save again
-_9b82:                                 ; >9b82
+dampen_all_tune_channels_2:                                 ; >9b82
        a    de,ix                      ; ADD IX,DE         ; Next channel
        sb   one,b                      ; DJNZ $9B70        ; Loop for 4 channels
-       jne  _9b70                      ;
+       jne  dampen_all_tune_channels_1                      ;
        .ret                            ; RET               ;
 
 * Stop tune
@@ -125,91 +123,91 @@ sound_player:                          ; >9b99
        .call @execute_sound_fx_commands ; CALL $9D67        ; Execute commands for all sound fx channels
        movb @is_tune_playing,a         ; LD A,($727A)      ; Is tune playing?
        ; AND A                         ; AND A             ; ...
-       jne  !                          ; RET Z             ; Return is not
-       .ret                            ;
-!
+       jeq  sound_player_1             ; RET Z             ; Return if not
        .call @dampen_all_tune_channels ; CALL $9B59        ; Dampen all tune channels
        li   hl,sound_player_countdown  ; LD HL,$727B       ; Decrement overall countdown
        sb   one,*hl                    ; DEC (HL)          ; ...
-       jeq  !                          ; RET NZ            ; Return if not 0
-       .ret                            ;
-!
+       jeq  sound_player_2             ; RET NZ            ; Return if not 0
+sound_player_1:
+       .ret
+sound_player_2:
        movb @bytes+>05,*hl             ; LD (HL),$05       ; Reset countdown
 * This entry point is used by the routine at #R$9BD9.
-_9bae:                                 ; >9bae
+sound_player_3:                        ; >9bae
        li   ix,tune_data_buffer_1      ; LD IX,$727D       ; First tune data buffer
        movb @bytes+>04,b               ; LD B,$04          ; 4 channels
-       movb @tune_playing,a            ; LD A,($727C)      ; Get tune index
+       movb @tune_index,a              ; LD A,($727C)      ; Get tune index
        cb   a,@bytes+>03               ; CP $03            ; If < 3
        jl   process_tune_byte          ; JR C,$9C1C        ; Then jump to the standard handler code
 * Special processing when tune index >= 3
        sb   one,@>05(ix)               ; DEC (IX+$05)      ; Decrement countdown for channel
-       jne  _9c06                      ; JR NZ,$9C06       ; If not 0 then jump ahead and return into standard code
+       jne  sound_player_9                      ; JR NZ,$9C06       ; If not 0 then jump ahead and return into standard code
 * A countdown of 0 when tune index >= 3 would take us here
        movb @bytes+>04,@>05(ix)        ; LD (IX+$05),$04   ; Reset countdown to 4 instead of 5
        movb @>01(ix),@l                ; LD L,(IX+$01)     ; Get tune address LSB
        movb @>02(ix),h                 ; LD H,(IX+$02)     ; Get tune address MSB
 * This entry point is used by the routines at #R$9BD9 and #R$9BF8.
-_9bca:                                 ; >9bca
-;       movb *hl,a                     ; LD A,(HL)         ; Get tune byte
+sound_player_4:                         ; >9bca
+;       movb *hl,a                      ; LD A,(HL)         ; Get tune byte
 ;       inc  hl                         ; INC HL            ; Next tune address (always points to next)
        ; AND A                         ; AND A             ; Was the byte zero?
        movb *hl+,a                     ; LD A,(HL)         ; Get tune byte
-       jne  _9bfd                      ; JR NZ,$9BFD       ; If not, jump ahead
+       jne  sound_player_8             ; JR NZ,$9BFD       ; If not zero, jump ahead
 ;       movb *hl,a                     ; LD A,(HL)         ; Get next tune byte
 ;       inc  hl                         ; INC HL            ; Next tune address
        ; AND A                         ; AND A             ; Was the byte zero?
        movb *hl+,a                     ; LD A,(HL)         ; Get next tune byte
-       jne  _9bd9                      ; JR NZ,$9BD9       ; If not, jump ahead
+       jne  sound_player_5             ; JR NZ,$9BD9       ; If not, jump ahead
 * Two zeros only appear at the end of #R$A299
        li   hl,tune_data_24            ; LD HL,$A299       ; Jump back and repeat with #R$A299
-       jmp  _9bca                      ; JR $9BCA          ; ...
+       jmp  sound_player_4             ; JR $9BCA          ; ...
 
 * Handle frequency byte when tune index >= 3
 *
 * Used by the routine at #R$9B99.
-_9bd9:                                 ; >9bd9
-       jlt  !                          ; JP P,$9BF8        ; If > 0 then jump ahead to loop
-       b    @_9bf8                     ;
-!
+sound_player_5:                        ; >9bd9
+       jgt  sound_player_7             ; JP P,$9BF8        ; If > 0 then jump ahead to loop
        andi a,>7f00                    ; AND $7F           ; Negative - clear sign
-       jeq  _9bf1                      ; JR Z,$9BF1        ; If bit 7 was
+       jeq  sound_player_6             ; JR Z,$9BF1        ; If byte was $80, jump ahead
        movb a,@e                       ; LD E,A            ; Save value
-       movb @tune_playing,a            ; LD A,($727C)      ; Get tune playing
+       movb @tune_index,a              ; LD A,($727C)      ; Get tune playing
        cb   a,@bytes+>05               ; CP $05            ; If not 5
-       jne  _9bca                      ; JR NZ,$9BCA       ; Then jump back into #R$9B99
+       jne  sound_player_4             ; JR NZ,$9BCA       ; Then jump back into #R$9B99
        movb @e,a                       ; LD A,E            ; Restore value
        sb   one,a                      ; DEC A             ; Decrement value
-       jeq  _9bf1                      ; JR Z,$9BF1        ; If it was 1 then skip ahead
+       jeq  sound_player_6             ; JR Z,$9BF1        ; If it was 1 then skip ahead
        sb   one,@>07(ix)               ; DEC (IX+$07)      ; Decrement countdown
-       jeq  _9bca                      ; JR Z,$9BCA        ; If zero then jump back into #R$9B99
-_9bf1:                                 ; >9bf1
-       ab   @bytes+>06,a               ; ADD A,$06         ; Add 6 to get tune index
+       jeq  sound_player_4             ; JR Z,$9BCA        ; If zero then jump back into #R$9B99
+sound_player_6:                        ; >9bf1
+       ab   @bytes+>06,a               ; ADD A,$06         ; Add 6 to get tune index 6
        .call @play_tune                ; CALL $9B0D        ; Play tune
-       jmp  _9bae                      ; JR $9BAE          ;
+       jmp  sound_player_3             ; JR $9BAE          ;
 
 * Relative jump then  tune index >= 3
 *
 * When tune index >= 3 Used by the routine at #R$9BD9.
-_9bf8:                                 ; >9bf8
-       .call @update_counter_and_loop  ; CALL $9C92        ; Update counter and loop tune
-       jmp  _9bca                      ; JR $9BCA          ; Jump back into #R$9B99
+sound_player_7:                                 ; >9bf8
+       .call @update_counter_and_jump  ; CALL $9C92        ; Update counter and loop tune
+       jmp  sound_player_4                      ; JR $9BCA          ; Jump back into #R$9B99
 
 * Handle duration byte when tune index >= 3
 *
 * When tune index >= 3 Used by the routine at #R$9B99.
-_9bfd:                                 ; >9bfd
+sound_player_8:                        ; >9bfd
        movb a,@>03(ix)                 ; LD (IX+$03),A     ; Save tune byte in frequency LSB
        movb @l,@>01(ix)                ; LD (IX+$01),L     ; Set tune address LSB
        movb h,@>02(ix)                 ; LD (IX+$02),H     ; Set tune address MSB
 * This entry point is used by the routine at #R$9B99.
-_9c06:                                 ; >9c06
+sound_player_9:                        ; >9c06
 ;       sb   a,a                        ; XOR A             ; Clear A
 ;       sla  @>03(ix),1                 ; SLA (IX+$03)      ; Shift frequency bit 7 into carry
 ;       sla  a,1                        ; RLA               ; Shift carry into A bit 0
 ;       sla  @>03(ix),1                 ; SLA (IX+$03)      ; Shift frequency bit 7 into carry
 ;       sla  a,1                        ; RLA               ; Shift carry into A bit 0
        movb @>03(ix),a
+       movb a,r0
+       sla  r0,2
+       movb r0,@>03(ix)
        srl  a,6
        sb   one,a                      ; DEC A             ; -1, so that a zero will mute
        movb a,*ix                      ; LD (IX+$00),A     ; Save as tune/mute byte
@@ -226,53 +224,52 @@ process_tune_byte:                     ; >9c1c
        movb @>01(ix),@l                ; LD L,(IX+$01)     ; Get tune address LSB
        movb @>02(ix),h                 ; LD H,(IX+$02)     ; Get tune address MSB
 * This entry point is used by the routines at #R$9C39 and #R$9C46.
-_9c27:                                 ; >9c27
+process_tune_byte_1:                   ; >9c27
 ;       movb *hl,a                      ; LD A,(HL)         ; Get tune byte (duration)
 ;       inc  hl                         ; INC HL            ; Next tune address (always points to next)
        ; AND A                         ; AND A             ; Was the byte zero?
        movb *hl+,a                     ; Get tune byte (duration)
        jne  process_abs_rel_jump       ; JR NZ,$9C39       ; If not zero, then jump ahead
        .call @stop_tune                ; CALL $9B87        ; Stop tune
-       movb @tune_playing,a            ; LD A,($727C)      ; Get tune index
+       movb @tune_index,a              ; LD A,($727C)      ; Get tune index
        ; AND A                         ; AND A             ; Return if not zero
-       jeq  !                          ; RET NZ            ; ...
-       .ret                            ;
-!
+       jne  process_tune_byte_2        ; RET NZ            ; ...
        movb @bytes+>03,a               ; LD A,$03          ; Play tune #3
        b    @play_tune                 ; JP $9B0D          ; ...
+process_tune_byte_2:
+       .ret                            ;
 
 * Handle absolute or relative jump
 *
 * Used by the routine at #R$9C1C.
 process_abs_rel_jump:                  ; >9c39
-       jlt  !                          ; JP P,$9C4B        ; If bit 7 is not set, then jump ahead
-       b    @_9c4b                     ;
-!
+       jgt  process_duration_and_freq  ; JP P,$9C4B        ; If bit 7 is not set, then jump ahead
 * Duration byte has bit 7 set
        andi a,>7f00                    ; AND $7F           ; Clear bit 7
-       jne  _9c46                      ; JR NZ,$9C46       ; If it wasn't $80 then jump ahead
+       jne  process_rel_jump           ; JR NZ,$9C46       ; If it wasn't $80 then jump ahead
 * Duration byte is $80: absolute jump
 ;       movb *hl,@e                     ; LD E,(HL)         ; Get address from tune data
 ;       inc  hl                         ; INC HL            ; ...
-       movb *hl+,@e                    ; Get address from tune data
+       movb *hl+,@e                    ; Get address from tune data TODO
        movb *hl,d                      ; LD D,(HL)         ; ...
        .ex_de_hl                       ; EX DE,HL          ; HL = next address
-       jmp  _9c27                      ; JR $9C27          ; Jump to check if finished
+       jmp  process_tune_byte_1        ; JR $9C27          ; Jump to check if finished
 
 * Relative jump then check finished
 *
 * Used by the routine at #R$9C39.
-_9c46:                                 ; >9c46
-       .call @update_counter_and_loop  ; CALL $9C92        ; Handle relative jump
-       jmp  _9c27                      ; JR $9C27          ; Jump to check if finished
+process_rel_jump:                      ; >9c46
+       .call @update_counter_and_jump  ; CALL $9C92        ; Handle relative jump
+       jmp  process_tune_byte_1        ; JR $9C27          ; Jump to check if finished
 
 * Process normal duration and frequency
 *
 * Used by the routine at #R$9C39.
-_9c4b:                                 ; >9c4b
+process_duration_and_freq:                                 ; >9c4b
        movb a,@>05(ix)                 ; LD (IX+$05),A     ; Set countdown to duration
-       movb *hl,a                      ; LD A,(HL)         ; Get tune byte (frequency)
-       inc  hl                         ; INC HL            ; Next tune address
+;       movb *hl,a                      ; LD A,(HL)         ; Get tune byte (frequency)
+;       inc  hl                         ; INC HL            ; Next tune address
+       movb *hl+,a
        movb a,*ix                      ; LD (IX+$00),A     ; Set tone/mute to tune byte
        movb @l,@>01(ix)                ; LD (IX+$01),L     ; Set tune address LSB
        movb h,@>02(ix)                 ; LD (IX+$02),H     ; Set tune address MSB
@@ -294,20 +291,20 @@ _9c4b:                                 ; >9c4b
 ;       movb @tune_playing,a            ; LD A,($727C)      ; Get tune playing
 ;       cb   a,@bytes+>06               ; CP $06            ; Is it 6?
 ;       movb @e,a                       ; LD A,E            ; Get value back in A
-       cb   @tune_playing,@bytes+>06
-       jne  _9c7e                      ; JR NZ,$9C7E       ; Jump if tune not 6
+       cb   @tune_index,@bytes+>06
+       jne  process_channel_done       ; JR NZ,$9C7E       ; Jump if tune not 6
        socb @bytes+>a0,a               ; OR $A0            ; Apply special attenuation for tune 6
-       jmp  _9c87                      ; JR $9C87          ; Skip reset countdown (?) and skip fetch attenuation
+       jmp  process_channel_done_1                      ; JR $9C87          ; Skip reset countdown (?) and skip fetch attenuation
 
 * End of processing sound channel
 *
 * Used by the routine at #R$9C4B.
-_9c7e:                                 ; >9c7e
+process_channel_done:                  ; >9c7e
        movb @>08(ix),@e                ; LD E,(IX+$08)     ; Copy byte 8 (speed) to countdown
        movb @e,@>07(ix)                ; LD (IX+$07),E     ; ...
        socb @>06(ix),a                 ; OR (IX+$06)       ; Get attenuation from byte 6
 * This entry point is used by the routine at #R$9C4B.
-_9c87:                                 ; >9c87
+process_channel_done_1:                ; >9c87
        movb a,@>04(ix)                 ; LD (IX+$04),A     ; Save in attenuation/frequency
 * This entry point is used by the routines at #R$9BFD, #R$9C1C and #R$9C4B.
 next_tune_data_buffer:                 ; >9c8a
@@ -321,13 +318,13 @@ next_tune_data_buffer:                 ; >9c8a
 * Handle relative jump
 *
 * Used by the routines at #R$9BF8 and #R$9C46.
-update_counter_and_loop:               ; >9c92
+update_counter_and_jump:               ; >9c92
        movb a,@e                       ; LD E,A            ; Save tune byte
        movb @>09(ix),a                 ; LD A,(IX+$09)     ; Get countdown
        ; AND A                         ; AND A             ; Was it zero?
        jeq  relative_jump              ; JR Z,$9CA0        ; Then set it and make relative jump
        sb   one,@>09(ix)               ; DEC (IX+$09)      ; Else decrement countdown
-       jne  _9ca3                      ; JR NZ,$9CA3       ; If not zero then make relative jump
+       jne  relative_jump_1            ; JR NZ,$9CA3       ; If not zero then make relative jump
        inc  hl                         ; INC HL            ; Else next tune address
        .ret                            ; RET               ;
 
@@ -337,7 +334,7 @@ update_counter_and_loop:               ; >9c92
 relative_jump:                         ; >9ca0
        movb @e,@>09(ix)                ; LD (IX+$09),E     ; Set countdown to tune byte
 * This entry point is used by the routine at #R$9C92.
-_9ca3:                                 ; >9ca3
+relative_jump_1:                       ; >9ca3
        movb *hl,@e                     ; LD E,(HL)         ; Get tune byte (negative jump offset)
        movb @b255,d                    ; LD D,$FF          ; Set MSB of offset
        a    de,hl                      ; ADD HL,DE         ; Add offset to address
@@ -349,29 +346,25 @@ _9ca3:                                 ; >9ca3
 *
 * I:C Index of sound (1-9), maybe 1 is no sound?
 play_sound:                            ; >9ca8
-       movb @tune_playing,a            ; LD A,($727C)      ; Get tune playing
+       movb @tune_index,a            ; LD A,($727C)      ; Get tune playing
        ; AND A                         ; AND A             ; If zero
-       jne  !                          ; RET Z             ; Then return
-       .ret                            ;
-!
+       jeq  play_sound_1               ; RET Z             ; Then return
        cb   a,@bytes+>06               ; CP $06            ; Are we playing tune 6?
        jeq  play_sound_no_checks       ; JR Z,$9CB5        ; Then skip ahead
        movb @c,a                       ; LD A,C            ; A = index of sound
        cb   a,@bytes+>02               ; CP $02            ; Is it < 2?
-       jhe  !                          ; RET C             ; Then return
-       .ret                            ;
-!
+       jhe  play_sound_no_checks       ; RET C             ; Then return
+play_sound_1:
+       .ret
 * This entry point is used by the routines at #R$9B54 and #R$9E01.
 play_sound_no_checks:                  ; >9cb5
        equ  $
        movb @c,a                       ; LD A,C            ; A = index of sound
        .push af                        ; PUSH AF           ; Save index
-       .call @_9cbf                    ; CALL $9CBF        ; Call next routine
+       .call @init_play_sound_fx                    ; CALL $9CBF        ; Call next routine
        .pop af                         ; POP AF            ; Restore index
        cb   a,@bytes+>09               ; CP $09            ; Is it 9? (if called from play_tune or #R$9E45)
-       jeq  !                          ; RET NZ            ; Return if not
-       .ret                            ;
-!
+       jne  play_sound_1               ; RET NZ            ; Return if not
        ab   one,a                      ; INC A             ; Index + 1 (now 10) (continue into #R$9CBF)
 
 * Copy data from #R$9CE7 to sound fx channel, and change pointer from sound
@@ -380,7 +373,7 @@ play_sound_no_checks:                  ; >9cb5
 * Used by the routine at #R$9CA8.
 *
 * label=init_play_sound_fx
-_9cbf:                                 ; >9cbf
+init_play_sound_fx:                    ; >9cbf
        andi af,>ff00
 ;       sla  a,1                        ; RLCA              ; Multiply by 8
 ;       sla  a,1                        ; RLCA              ; ...

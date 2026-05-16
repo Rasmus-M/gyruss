@@ -461,7 +461,7 @@ sound_player_countdown:                ; >727b
        byte >00
 
 * Index of tune playing
-tune_playing:                          ; >727c
+tune_index:                          ; >727c
        byte >00
 
 * Tune data channel 1
