@@ -1,7 +1,8 @@
        copy "main-code.a99"
-       copy "sound.a99"
+       copy "sound-player.a99"
        copy "cv-routines.a99"
        copy "ti-routines.a99"
+       copy "graphics.a99"
 
 upper_memory_max:
        equ  $

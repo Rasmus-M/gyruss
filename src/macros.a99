@@ -103,3 +103,8 @@
        .defm halt
        bl   @ti_vsync
        .endm
+
+       .defm a_to_psg
+       movb a,@sound
+       .endm
+

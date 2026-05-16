@@ -1,0 +1,284 @@
+* Sound fx data
+*
+* Byte 0 in each row is the channel. Rows are copied into the corresponding
+* sound fx data buffer.
+* #TABLE(default, default)
+* { =h Index | =h Played when }
+* { $00 | None }
+* { $01 | Shot hit center enemy }
+* { $02 | New wave }
+* { $03 | Explosion }
+* { $04 | Shot hit enemy }
+* { $05 | Stage completed }
+* { $06 | Extra life }
+* { $07 | Mines appear, ship appear }
+* { $08 | Shot hit mine }
+* { $09 | Part of tune }
+* { $0A | None }
+* TABLE#
+sound_fx_data_table:                   ; >9ce7
+       byte >00,>00,>00,>00,>26,>80,>00,>00
+       byte >02,>00,>00,>40,>41,>81,>40,>00
+       byte >03,>00,>00,>70,>51,>82,>00,>00
+       byte >00,>00,>00,>00,>00,>83,>00,>00
+       byte >02,>00,>00,>80,>41,>84,>80,>00
+       byte >03,>DC,>00,>80,>80,>85,>C0,>03
+       byte >00,>00,>00,>00,>48,>86,>00,>00
+       byte >00,>00,>00,>FC,>F0,>87,>00,>00
+       byte >03,>40,>00,>80,>80,>88,>F0,>01
+       byte >03,>00,>00,>00,>F0,>89,>00,>00
+       byte >00,>00,>00,>00,>87,>8A
+
+* Sound frequency table
+frequency_table:                       ; >9eb6
+       byte >35,>39,>3C,>40,>43,>47,>4C,>50
+       byte >55,>5A,>5F,>65,>6B,>71,>78,>7F
+       byte >87,>8F,>97,>A0,>AA,>B4,>BE,>CA
+       byte >D6,>E2,>F0,>FE,>0D,>1D,>2E,>40
+       byte >53,>68,>7D,>94,>AC,>C5,>E0,>FC
+       byte >1B,>3B,>5D,>81,>A7,>CF,>FA,>27
+       byte >57,>8A,>C0,>F9
+
+* Tune data
+*
+* Each row contains 4 addresses for 4 channels. Addresses are copied into byte
+* 1 and 2 of the sound data buffer.
+* #TABLE(default, default)
+* { =h Index | =h Played when }
+* { $00 | First stage }
+* { $01 | Planet reached }
+* { $02 | Perfect bonus }
+* { $03 | 2 warps to planet }
+* { $04 | 1 warp to planet }
+* { $05 | 3 warps to planet }
+* { $06 | Chance stage }
+* { $07 | Unknown }
+* TABLE#
+tune_data_table:                       ; >9eea
+       data tune_data_26,tune_data_1,tune_data_3,tune_data_5
+       data tune_data_26,tune_data_2,tune_data_4,tune_data_6
+       data tune_data_10,tune_data_7,tune_data_8,tune_data_9
+       data tune_data_14,tune_data_11,tune_data_12,tune_data_13
+       data tune_data_22,tune_data_15,tune_data_18,tune_data_20
+       data tune_data_22,tune_data_16,tune_data_18,tune_data_20
+       data tune_data_24,tune_data_26,tune_data_26,tune_data_25
+       data tune_data_23,tune_data_17,tune_data_19,tune_data_21
+
+* Tune data 1
+*
+* Tune data basically consist of pairs of 2 bytes
+* #TABLE(default, default)
+* { =h Byte offset | =h Purpose }
+* { $00 | Duration }
+* {     | If bit 7 if set, it has a special meaning: }
+* {     | 1000000: load new address from next two bytes }
+* {     | 1XXXXXX: subtract XXXXXXX from address }
+* {     | 1111111: mute channel }
+* { $01 | Frequency }
+* {     | Bits 6-7 are used directly as bits 8-9 of the PSG frequency }
+* {     | Bits 0-5 are used as index into #R$9EB6, which produces bits 0-7 of
+* the PSG frequency }
+* TABLE#
+tune_data_1:                           ; >9f2a
+       byte >02,>19,>02,>1B,>10,>19,>04,>FF
+       byte >04,>1B,>04,>5D,>04,>5E,>04,>60
+       byte >08,>61,>18,>60
+
+* Tune data 2
+tune_data_2:                           ; >9f3e
+       byte >06,>60,>06,>61,>06,>5E,>06,>1B
+       byte >06,>18,>06,>15,>0C,>12,>18,>14
+
+* Tune data 3
+tune_data_3:                           ; >9f4e
+       byte >02,>65,>02,>67,>10,>65,>04,>FF
+       byte >04,>67,>04,>A9,>04,>AA,>04,>AC
+       byte >08,>AD,>18,>AC
+
+* Tune data 4
+tune_data_4:                           ; >9f62
+       byte >0C,>64,>0C,>67,>0C,>AA,>0C,>AD
+       byte >18,>AC
+
+* Tune data 5
+tune_data_5:                           ; >9f6c
+       byte >48,>FF
+
+* Tune data 6
+tune_data_6:                           ; >9f6e
+       byte >24,>FF,>0C,>1B,>02,>5C,>02,>5E
+       byte >14,>5C,>00
+
+* Tune data 7
+tune_data_7:                           ; >9f79
+       byte >02,>15,>87,>FD,>02,>16,>87,>FD
+       byte >18,>16
+
+* Tune data 8
+tune_data_8:                           ; >9f83
+       byte >08,>61,>08,>1A,>08,>15,>20,>0E
+
+* Tune data 9
+tune_data_9:                           ; >9f8b
+       byte >08,>FF,>30,>AD
+
+* Tune data 10
+tune_data_10:                          ; >9f8f
+       byte >08,>FF,>30,>80,>00
+
+* Tune data 11
+tune_data_11:                          ; >9f94
+       byte >12,>FF,>01,>18,>01,>19,>01,>1A
+       byte >01,>1B,>01,>5C,>01,>5D,>01,>5E
+       byte >01,>5F,>01,>60,>01,>61,>01,>62
+       byte >01,>63,>01,>64,>01,>65,>02,>60
+       byte >02,>5E,>02,>5D,>02,>60,>02,>5E
+       byte >02,>5D,>02,>1B,>02,>5E,>02,>5D
+       byte >02,>1B,>02,>19,>02,>5D,>02,>1B
+       byte >02,>19,>02,>18,>02,>1B,>02,>19
+       byte >02,>5D,>02,>1B,>02,>5E,>02,>5D
+       byte >02,>60,>02,>5E,>02,>61,>02,>60
+       byte >02,>65,>01,>64,>01,>65,>02,>67
+       byte >06,>65,>02,>65,>81,>C1,>30,>FF
+       byte >10,>AC,>04,>AC,>04,>AC,>04,>AC
+       byte >04,>AC
+
+* Tune data 12
+tune_data_12:                          ; >9ffe
+       byte >12,>FF,>01,>5F,>01,>60,>01,>61
+       byte >01,>62,>01,>63,>01,>64,>01,>65
+       byte >01,>66,>01,>67,>01,>A8,>01,>A9
+       byte >01,>AA,>01,>AB,>01,>AC,>04,>65
+       byte >04,>65,>86,>FB,>08,>FF,>04,>65
+       byte >04,>65,>85,>FB,>02,>AC,>02,>65
+       byte >02,>64,>02,>67,>02,>65,>02,>A9
+       byte >02,>67,>02,>AA,>02,>A9,>02,>AC
+       byte >02,>67,>02,>AA,>02,>A9,>02,>AC
+       byte >02,>AA,>02,>AD,>81,>DF,>10,>F1
+       byte >04,>F1,>04,>F1,>04,>F1,>04,>F1
+
+* Tune data 13
+tune_data_13:                          ; >a056
+       byte >02,>AC,>02,>F1,>80,>56,>A0
+
+* Tune data 14
+tune_data_14:                          ; >a05d
+       byte >5A,>00,>07,>FD,>A9,>6A,>00,>06
+       byte >FC,>AA,>8A,>A9,>6A,>00,>10,>FC
+       byte >A9,>69,>00,>80
+
+* Tune data 15
+tune_data_15:                          ; >a071
+       byte >12,>FF,>01,>18,>01,>16,>01,>14
+       byte >01,>12,>01,>11,>01,>0F,>01,>0D
+       byte >01,>0C,>01,>0A,>01,>08,>01,>06
+       byte >01,>05,>01,>0F,>01,>0D,>80,>94
+       byte >A0
+
+* Tune data 16
+tune_data_16:                          ; >a092
+       byte >20,>FF
+
+* Tune data 17
+tune_data_17:                          ; >a094
+       byte >02,>18,>04,>18,>87,>FD,>04,>19
+       byte >87,>FD,>04,>1B,>86,>FD,>02,>1B
+       byte >02,>5D,>04,>5E,>83,>FB,>04,>5D
+       byte >04,>5E,>02,>FF,>06,>5D,>06,>5E
+       byte >06,>60,>0C,>61,>81,>F5,>02,>FF
+       byte >06,>18,>06,>19,>06,>1B,>06,>19
+       byte >81,>F7,>06,>18,>06,>19,>12,>18
+       byte >20,>19,>01,>12,>01,>0F,>01,>12
+       byte >01,>15,>83,>F7,>01,>15,>01,>12
+       byte >01,>15,>01,>18,>83,>F7,>01,>18
+       byte >01,>15,>01,>18,>01,>1B,>83,>F7
+       byte >01,>1B,>01,>18,>01,>1B,>01,>5E
+       byte >83,>F7,>01,>5E,>01,>1B,>01,>5E
+       byte >01,>61,>87,>F7,>01,>18,>01,>15
+       byte >01,>18,>01,>1B,>83,>F7,>01,>1B
+       byte >01,>18,>01,>1B,>01,>5E,>83,>F7
+       byte >01,>5E,>01,>1B,>01,>5E,>01,>61
+       byte >8B,>F7,>08,>67,>08,>AA,>10,>19
+       byte >06,>1B,>02,>19,>04,>18,>04,>1B
+       byte >10,>19,>10,>1B,>08,>1B,>04,>5D
+       byte >04,>5E,>10,>5D,>10,>5D
+
+* Tune data 18
+tune_data_18:                          ; >a13a
+       byte >04,>65,>87,>FD
+
+* Tune data 19
+tune_data_19:                          ; >a13e
+       byte >02,>60,>04,>60,>87,>FD,>04,>62
+       byte >87,>FD,>04,>64,>86,>FD,>02,>64
+       byte >02,>60,>04,>61,>83,>FB,>04,>60
+       byte >04,>61,>02,>FF,>06,>65,>06,>67
+       byte >06,>A9,>0C,>AA,>02,>FF,>06,>18
+       byte >06,>19,>06,>1B,>0C,>19,>02,>FF
+       byte >06,>5D,>06,>5E,>06,>60,>06,>61
+       byte >06,>5D,>06,>5E,>06,>60,>06,>5E
+       byte >06,>5D,>06,>5E,>12,>5D,>20,>65
+       byte >04,>67,>87,>FD,>10,>1B,>10,>5E
+       byte >10,>61,>08,>64,>08,>67,>81,>F5
+       byte >08,>AA,>08,>67,>08,>AA,>08,>AD
+       byte >04,>5D,>02,>5E,>02,>60,>08,>5D
+       byte >04,>64,>02,>65,>02,>67,>04,>60
+       byte >04,>64,>04,>AD,>04,>67,>04,>65
+       byte >04,>63,>04,>61,>04,>63,>04,>61
+       byte >04,>65,>08,>64,>04,>65,>04,>67
+       byte >10,>65,>10,>65
+
+* Tune data 20
+tune_data_20:                          ; >a1ca
+       byte >02,>AC,>02,>F1,>87,>FB
+
+* Tune data 21
+tune_data_21:                          ; >a1d0
+       byte >02,>F0,>02,>A9,>87,>FB,>02,>F1
+       byte >02,>AA,>87,>FB,>02,>F3,>02,>AC
+       byte >87,>FB,>02,>F0,>04,>F1,>83,>FB
+       byte >04,>F0,>04,>F1,>02,>FF,>06,>AC
+       byte >06,>AE,>06,>F0,>0C,>F1,>81,>F5
+       byte >02,>FF,>06,>AC,>06,>AE,>06,>F0
+       byte >06,>F1,>06,>F3,>06,>F1,>06,>F0
+       byte >06,>AE,>06,>AC,>06,>AE,>12,>AC
+       byte >20,>F1,>20,>FF,>10,>61,>10,>64
+       byte >10,>67,>08,>AA,>08,>AD,>81,>F5
+       byte >08,>F0,>08,>AD,>08,>AD,>08,>F1
+       byte >10,>AC,>10,>AC,>10,>AA,>0C,>F1
+       byte >04,>AD,>08,>AC,>08,>AC,>10,>AC
+       byte >10,>AC
+
+* Tune data 22
+tune_data_22:                          ; >a23a
+       byte >A9,>6A,>00,>03,>FC
+
+* Tune data 23
+tune_data_23:                          ; >a23f
+       byte >A9,>6A,>00,>02,>FC,>88,>A8,>A9
+       byte >6A,>00,>02,>FC,>8A,>88,>A9,>6A
+       byte >00,>02,>FC,>88,>A8,>A9,>6A,>00
+       byte >03,>FC,>00,>82,>A9,>6A,>A9,>6A
+       byte >A9,>6A,>AA,>A8,>00,>01,>F6,>A9
+       byte >6A,>00,>09,>FC,>88,>00,>04,>FD
+       byte >AA,>AA,>AA,>00,>81,>80,>00,>0F
+       byte >FD,>88,>00,>0F,>FD,>AA,>00,>0C
+       byte >FD,>88,>AA,>88,>88,>88,>8A,>88
+       byte >00,>06,>FD,>AA,>88,>88,>88,>88
+       byte >88,>8A,>88,>8A,>AA,>00,>08,>FD
+       byte >00,>80
+
+* Tune data 24
+tune_data_24:                          ; >a299
+       byte >7F,>FD,>7F,>FD,>7D,>7D,>7F,>FD
+       byte >7D,>F7,>DF,>44,>5F,>5F,>55,>44
+       byte >5F,>5F,>44,>55,>00,>00
+
+* Tune data 25
+tune_data_25:                          ; >a2af
+       byte >01,>F1,>01,>F0,>80,>AF,>A2
+
+* Tune data 26
+tune_data_26:                          ; >a2b6
+       byte >40,>FF,>80,>B6,>A2
+
