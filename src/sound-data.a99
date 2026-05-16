@@ -159,7 +159,7 @@ tune_data_12:                          ; >9ffe
 
 * Tune data 13
 tune_data_13:                          ; >a056
-       byte >02,>AC,>02,>F1,>80,>56,>A0
+       byte >02,>AC,>02,>F1,>80,tune_data_13%%256,tune_data_13//256
 
 * Tune data 14
 tune_data_14:                          ; >a05d
@@ -172,8 +172,8 @@ tune_data_15:                          ; >a071
        byte >12,>FF,>01,>18,>01,>16,>01,>14
        byte >01,>12,>01,>11,>01,>0F,>01,>0D
        byte >01,>0C,>01,>0A,>01,>08,>01,>06
-       byte >01,>05,>01,>0F,>01,>0D,>80,>94
-       byte >A0
+       byte >01,>05,>01,>0F,>01,>0D,>80,tune_data_17%%256
+       byte tune_data_17//256
 
 * Tune data 16
 tune_data_16:                          ; >a092
@@ -276,9 +276,9 @@ tune_data_24:                          ; >a299
 
 * Tune data 25
 tune_data_25:                          ; >a2af
-       byte >01,>F1,>01,>F0,>80,>AF,>A2
+       byte >01,>F1,>01,>F0,>80,tune_data_25%%256,tune_data_25//256
 
 * Tune data 26
 tune_data_26:                          ; >a2b6
-       byte >40,>FF,>80,>B6,>A2
+       byte >40,>FF,>80,tune_data_26%%256,tune_data_26//256
 
