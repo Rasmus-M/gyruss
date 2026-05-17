@@ -143,6 +143,7 @@ load_ascii:
        .ret
 
 decoder:
+       .proc
        clr  hl
        li   r0,>0606
        bl   @ti_check_key
@@ -160,4 +161,4 @@ decoder:
 !      tb   4                          ; Up
        jeq  !
        socb @bytes+>01,@l
-!      .ret
+!      .endproc

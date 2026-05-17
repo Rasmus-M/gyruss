@@ -402,7 +402,6 @@ init_sound_fx:                    ; >9cbf
        movb a,@c                       ; LD C,A            ; BC = A
        li   hl,ptr_psg_noise_data      ; LD HL,$7270       ; First pointer
        a    bc,hl                      ; ADD HL,BC         ; Add offset
-_9ce3:                                 ; >9ce3
 ;       movb @e,*hl                     ; LD (HL),E         ; Set pointer LSB
 ;       inc  hl                         ; INC HL            ; Next address
 ;       movb d,*hl                      ; LD (HL),D         ; Set pointer MSB
@@ -441,7 +440,7 @@ sound_fx_done:                         ; >9d3d
        a    de,hl                      ; ADD HL,DE         ; Add offset
 ;       movb @l,*iy                     ; LD (IY+$00),L     ; Update pointer with sound data address
 ;       movb h,@>01(iy)                 ; LD (IY+$01),H     ; ...
-       mov  hl,*iy
+       mov  hl,*iy                     ; Update pointer with sound data address
        .ret                            ; RET               ;
 
 * Execute commands for all sound fx channels

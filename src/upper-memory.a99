@@ -3,6 +3,7 @@
        copy "cv-routines.a99"
        copy "ti-routines.a99"
        copy "graphics.a99"
+       copy "wave-data.a99"
 
 upper_memory_max:
        equ  $

@@ -9,7 +9,6 @@
        copy "ascii.a99"
        copy "sound-data.a99"
        copy "star-data.a99"
-       copy "wave-data.a99"
 
 lower_memory_max:
        equ  $

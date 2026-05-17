@@ -17,12 +17,12 @@ entry_wait_fire:                       ; >8047
        .halt                           ; HALT              ; Wait for interrupt
        .call @display_stars            ; CALL $AFFF        ; Display stars
        li   hl,>0000                   ; LD HL,$0000       ; Controller 0, segment 0
-       .call @decoder                  ; CALL $1F79        ; DECODER
+       bl   @decoder                   ; CALL $1F79        ; DECODER
        movb h,r0                       ; BIT 6,H           ; Test fire
        andi r0,>4000                   ;
        jne  new_game                   ; JR NZ,$8064       ; Jump if fire pressed
        li   hl,>0100                   ; LD HL,$0100       ; Controller 1, segment 0
-       .call @decoder                  ; CALL $1F79        ; DECODER
+       bl   @decoder                   ; CALL $1F79        ; DECODER
        movb h,r0                       ; BIT 6,H           ; Test fire
        andi r0,>4000                   ;
        jeq  entry_wait_fire            ; JR Z,$8047        ; Loop until fire pressed
@@ -95,7 +95,6 @@ _80e0:                                 ; >80e0
 * Used by the routines at #R$81AE and #R$83D0.
 main_loop:                             ; >80e8
        bl   @ti_vsync
-       .call @sound_player
 ;       li   hl,interrupt_flag          ; LD HL,$725A       ; Flag set by interrupt routine
 ;_80eb:                                 ; >80eb
 ;       movb *hl,r0                     ; BIT 0,(HL)        ; Test flag
@@ -103,6 +102,7 @@ main_loop:                             ; >80e8
 ;       jeq  _80eb                      ; JR Z,$80EB        ; Wait until set
 ;       szcb @bits+0,*hl                ; RES 0,(HL)        ; Clear flag
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER (read VDP status)
+;       .call @sound_player
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @process_sprites          ; CALL $85E6        ; Process sprites
@@ -184,13 +184,13 @@ lose_life:                             ; >8170
        li   bc,>0009                   ; LD BC,$0009       ; ...
        .rst >38                        ; RST $38           ; WRITE_VRAM
        sb   b,b                        ; LD B,$00          ; Stars for 256 frames
-_8192:                                 ; >8192
+game_over_loop:                        ; >8192
        .push bc                        ; PUSH BC           ; ...
        .halt                           ; HALT              ; ...
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .pop bc                         ; POP BC            ; ...
        sb   one,b                      ; DJNZ $8192        ; ...
-       jne  _8192                      ;
+       jne  game_over_loop             ;
        .call @clear_rows_9_and_14      ; CALL $84ED        ; Clear rows 9 and 14
        li   hl,status_flags            ; LD HL,$71EB       ; Test for two players
        movb *hl,r0                     ; BIT 7,(HL)        ; ...
@@ -246,27 +246,24 @@ _81e2:                                 ; >81e2
 wait_for_restart:                      ; >81ed
        li   hl,>4650                   ; LD HL,$4650       ; 300 seconds
        mov  hl,@screensaver_countdown  ; LD ($7257),HL     ; Set screensaver countdown
-_81f3:                                 ; >81f3
+wait_for_restart_loop:                 ; >81f3
        .halt                           ; HALT              ;
-       li   hl,>0001                   ; LD HL,$0001       ; Controller 0, segment 1
-       .call @decoder                  ; CALL $1F79        ; DECODER
-       movb @l,a                       ; LD A,L            ;
-       cb   a,@bytes+>0a               ; CP $0A            ;
-       jne  !                          ; JP Z,$8064        ; Start a new game
-       b    @new_game                  ;
-!
-       cb   a,@bytes+>0f               ; CP $0F            ;
-       jeq  !                          ; JP NZ,$0000       ; Reset
-       b    @>0000                     ;
-!
+;       li   hl,>0001                   ; LD HL,$0001       ; Controller 0, segment 1
+;       bl   @decoder                   ; CALL $1F79        ; DECODER
+;       movb @l,a                       ; LD A,L            ;
+;       cb   a,@bytes+>0a               ; CP $0A            ;
+;       jne  !                          ; JP Z,$8064        ; Start a new game
+;       b    @new_game                  ;
+;!
+;       cb   a,@bytes+>0f               ; CP $0F            ;
+;       jeq  !                          ; JP NZ,$0000       ; Reset
+;       b    @>0000                     ;
+;!
        li   hl,>0000                   ; LD HL,$0000       ; Controller 0, segment 0
-       .call @decoder                  ; CALL $1F79        ; DECODER
-       movb h,r0                       ; BIT 6,H           ; Test fire
-       andi r0,>4000                   ;
-       jeq  !                          ; JP NZ,$8064       ; Start a new game
+       bl   @decoder                   ; CALL $1F79        ; DECODER
+       czc  @bit6,h                    ; BIT 6,H           ; Test fire
+       jeq  wait_for_restart_loop      ; JP NZ,$8064       ; Start a new game
        b    @new_game                  ;
-!
-       jmp  _81f3                      ; JR $81F3          ; Loop
 
 * Init stage
 *
@@ -1182,7 +1179,7 @@ handle_sprite_types_0e_11:             ; >8790
        b    @handle_sprite_types_18_1c ;
 !
 * Sprite type $0E - $11 (enemies)
-       movb @>07(ix),r0                ; BIT 7,(IX+$07)    ; Check bit 7 of flags
+       movb @>07(ix),r0                ; BIT 7,(IX+$07)    ; Check bit 7 to see if a path address is set
        andi r0,>8000                   ;
        jeq  !                          ; JP NZ,$88FE       ; If set, update sprite path
        b    @update_sprite_path        ;
@@ -1205,10 +1202,10 @@ handle_sprite_types_0e_11:             ; >8790
        jeq  !                          ; JP NZ,$885F       ; If set, create enemy shot and move
        b    @create_enemy_shot_and_move ;
 !
-       movb @attack_countdown,a    ; LD A,($7260)          ; Attack countdown
+       movb @attack_countdown,a        ; LD A,($7260)          ; Attack countdown
 ;       socb a,a                        ; OR A              ; Return if not zero
        jne  !                          ; RET NZ            ; ...
-       .call @maybe_create_enemy_shot        ; CALL $8A76        ; Create enemy shot
+       .call @maybe_create_enemy_shot  ; CALL $8A76        ; Create enemy shot
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
        movb @sprite_data+>0002,a       ; LD A,($7004)      ; Ship polar x
        .call @move_towards_x           ; CALL $8AC0        ; Move towards x
@@ -1801,7 +1798,7 @@ _8acc:                                 ; >8acc
 ;       cb   a,@bytes+>21               ; CP $21            ; Compare with top center
        mov  a,r0
        movb b,a                        ; LD A,B            ; A = direction
-       cb   a,@bytes+>21
+       cb   r0,@bytes+>21
        jlt  _8ad3                      ; JR C,$8AD3        ; Jump if left half
        neg a                           ; NEG               ; Invert direction in right half
 _8ad3:                                 ; >8ad3
@@ -1811,8 +1808,8 @@ _8ad3:                                 ; >8ad3
        movb a,@>02(ix)                 ; LD (IX+$02),A     ; Save new x
        movb @bytes+>10,a               ; LD A,$10          ; $10
        ab   b,a                        ; ADD A,B           ; $10 + direction, i.e. $0F or $11
-       movb a,*ix                      ; LD (IX+$00),A     ; Change sprite type?
-       ab   one,@>05(ix)               ; INC (IX+$05)      ; Increment counter
+       movb a,*ix                      ; LD (IX+$00),A     ; Change sprite type
+       ab   one,@>05(ix)               ; INC (IX+$05)      ; Mark for pattern reload
        .ret                            ; RET               ;
 
 * Reset enemy sprite types after dying
@@ -2177,7 +2174,7 @@ _8ccf:                                 ; >8ccf
 ;       movb *hl,h                      ; LD H,(HL)         ; Get MSB
 ;       movb a,@l                       ; LD L,A            ; L = LSB
        mov  *hl,hl
-       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Store in sprite data (pointer to path data?)
+       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Store in sprite data (pointer to path data)
        movb h,@>07(ix)                 ; LD (IX+$07),H     ; ...
        movb *hl,a                      ; LD A,(HL)         ; Get first byte
        andi a,>f000                    ; AND $F0           ; Isolate bits 4-7
@@ -3777,7 +3774,7 @@ _a34c:                                 ; >a34c
        movb @bytes+>14,b               ; LD B,$14          ; 20
 _a36e:                                 ; >a36e
        .push bc                        ; PUSH BC           ; Save counter
-       .call @sound_player
+;       .call @sound_player
        .call @move_dots                ; CALL $A471        ; Move dots
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @upload_sprite_data       ; CALL $ACF9        ; Upload sprite data
@@ -3810,7 +3807,7 @@ _a36e:                                 ; >a36e
 _a3b6:                                 ; >a3b6
        .halt                           ; HALT              ; Wait interrupt
        .push bc                        ; PUSH BC           ; Save counter
-       .call @sound_player
+;       .call @sound_player
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @display_center_enemies   ; CALL $AB72        ; Display center enemies
@@ -4115,7 +4112,7 @@ control_ship:                          ; >a73c
 ;       mov  @countdown_to_wave,hl      ; LD HL,($71F0)     ; Controller: #R$71F1
        movb  @current_player,h
        sb   @l,@l                      ; LD L,$00          ; Segment 0
-       .call @decoder                  ; CALL $1F79        ; DECODER (H = fire, L = joystick (bit 0: up, bit 1:
+       bl   @decoder                   ; CALL $1F79        ; DECODER (H = fire, L = joystick (bit 0: up, bit 1:
                                                            ; right, bit 2: down, bit 3: left))
        sb   h,h                        ; LD H,$00          ; Reset fire
        li   de,movement_table          ; LD DE,$A865       ; Movement table
@@ -4159,12 +4156,12 @@ _a781:                                 ; >a781
        movb  @current_player,h
        .push hl                        ; PUSH HL           ; Save current player
        sb   @l,@l                      ; LD L,$00          ; Segment 0
-       .call @decoder                  ; CALL $1F79        ; DECODER (H = fire, L = joystick)
+       bl   @decoder                   ; CALL $1F79        ; DECODER (H = fire, L = joystick)
        movb h,a                        ; LD A,H            ; Fire
        .pop hl                         ; POP HL            ; Restore current player
        .push af                        ; PUSH AF           ; Save fire segment 0
        movb one,@l                     ; LD L,$01          ; Segment 1
-       .call @decoder                  ; CALL $1F79        ; DECODER
+       bl   @decoder                   ; CALL $1F79        ; DECODER
        .pop af                         ; POP AF            ; Restore fire segment 0
        socb h,a                        ; OR H              ; Combine with fire segment 1
        li   hl,other_flags             ; LD HL,$7256       ; Flags
@@ -4454,7 +4451,7 @@ create_sprite_from_map_entry_3:        ; >ab17
        movb d,@>01(ix)                 ; LD (IX+$01),D     ; Set polar x
        movb @bytes+>10,*ix             ; LD (IX+$00),$10   ; Set sprite type
        .pop af                         ; POP AF            ; Restore value from map
-       movb a,@>0b(ix)                 ; LD (IX+$0B),A     ; Use it as color (may temporary since it's >= $80?)
+       movb a,@>0b(ix)                 ; LD (IX+$0B),A     ; Use it as color (maybe temporary since it's >= $80?)
        socb @bits+0,@>07(ix)           ; SET 0,(IX+$07)    ; Set flag
        .rst >30                        ; RST $30           ; Load sprite pattern
 ;       li   hl,active_enemies          ; LD HL,$722C       ; Increment number of active enemies
