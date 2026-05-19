@@ -1,0 +1,69 @@
+* Graphics pointer offsets
+*
+* Offsets into data block at B8FA
+graphics_pointer_offsets_table:        ; >b8dd
+       byte >00                                                      ; Type $00
+       byte >02                                                      ; Type $01
+       byte >04                                                      ; Type $02
+       byte >06                                                      ; Type $03
+       byte >08                                                      ; Type $04
+       byte >0A                                                      ; Type $05
+       byte >0C                                                      ; Type $06
+       byte >0E                                                      ; Type $07
+       byte >10                                                      ; Type $08
+       byte >12                                                      ; Type $09
+       byte >14                                                      ; Type $0A
+       byte >16                                                      ; Type $0B
+       byte >18                                                      ; Type $0C
+       byte >1A                                                      ; Type $0D
+       byte >1C                                                      ; Type $0E
+       byte >1E                                                      ; Type $0F
+       byte >20                                                      ; Type $10
+       byte >22                                                      ; Type $11
+       byte >24                                                      ; Type $12
+       byte >26                                                      ; Type $13
+       byte >28                                                      ; Type $14
+       byte >2A                                                      ; Type $15
+       byte >2C                                                      ; Type $16
+       byte >2E                                                      ; Type $17
+       byte >30                                                      ; Type $18
+       byte >32                                                      ; Type $19
+       byte >34                                                      ; Type $1A
+       byte >36                                                      ; Type $1B
+       byte >38                                                      ; Type $1C
+
+* Graphics pointers
+*
+* For each sprite type we start with a word where the LSB is the number of
+* patterns (n) in this sprite type, and the MSB is the transformations. Then
+* follows n pointers to patterns in #R$B9E6.
+graphics_pointers_table:               ; >b8fa
+       data >0204                                                    ; $00 type $00
+       data >0204                                                    ; $0A type $01
+       data >0004                                                    ; $14 type $02
+       data >0001                                                    ; $1E type $03
+       data >0004                                                    ; $22 type $04
+       data >0004                                                    ; $2C type $05
+       data >0001                                                    ; $36 type $06
+       data >0001                                                    ; $3A type $07
+       data >0001                                                    ; $3E type $08
+       data >0001                                                    ; $42 type $09
+       data >0001                                                    ; $46 type $0A
+       data >0001                                                    ; $4A type $0B
+       data >0001                                                    ; $4E type $0C
+       data >0001                                                    ; $52 type $0D
+       data >0204                                                    ; $56 type $0E
+       data >0204                                                    ; $60 type $0F
+       data >0204                                                    ; $6A type $10
+       data >0204                                                    ; $74 type $11
+       data >0004                                                    ; $7D type $12
+       data >0004                                                    ; $88 type $13
+       data >0004                                                    ; $92 type $14
+       data >0204                                                    ; $9C type $15
+       data >0204                                                    ; $A6 type $16
+       data >0204                                                    ; $B0 type $17
+       data >0204                                                    ; $BA type $18
+       data >0204                                                    ; $C4 type $19
+       data >0004                                                    ; $CB type $1A
+       data >0004                                                    ; $D8 type $1B
+       data >0004                                                    ; $E2 type $1C

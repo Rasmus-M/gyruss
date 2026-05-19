@@ -642,40 +642,6 @@ upload_source:                         ; >72dc
 pattern_address:                       ; >72de
        data >0000
 
-* Sprite patterns addresses in VDP
-*
-* One entry for each of the 29 sprite types.
-sprite_pattern_vdp_addrs_table:        ; >72e0
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-       data >0000
-
 * Star frame
 star_frame:                            ; >731a
        byte >00
@@ -683,6 +649,40 @@ star_frame:                            ; >731a
 * Random number
 random_number:                         ; >731b
        byte >00,>00
+
+* Sprite patterns addresses in VDP
+*
+* One entry for each of the 29 sprite types.
+sprite_pattern_vdp_addrs_table:        ; >72e0
+       data >2100
+       data >2300
+       data >2500
+       data >2520
+       data >2528
+       data >2548
+       data >2568
+       data >2570
+       data >2578
+       data >2580
+       data >2588
+       data >2590
+       data >2598
+       data >25A0
+       data >25A8
+       data >27A8
+       data >29A8
+       data >2BA8
+       data >2DA8
+       data >2DC8
+       data >2DE8
+       data >2E08
+       data >3008
+       data >3208
+       data >3408
+       data >3608
+       data >3808
+       data >3828
+       data >3848
 
 * Sprite allocation table VDP address
 sat_vdp_address:                       ; >73f2

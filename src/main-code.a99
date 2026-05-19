@@ -1325,10 +1325,10 @@ handle_out_of_screen_3:                ; >8853
 *
 * I:IX Sprite data of enemy
 create_enemy_shot_and_move:            ; >885f
-       .call @maybe_create_enemy_shot        ; CALL $8A76        ; Create enemy shot
+       .call @maybe_create_enemy_shot  ; CALL $8A76        ; Create enemy shot
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
        cb   a,@bytes+>22               ; CP $22            ; Is it < $22
-       jlt  _8878                      ; JR C,$8878        ; Then jump ahead
+       jl   _8878                      ; JR C,$8878        ; Then jump ahead
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
        movb @bytes+>02,@>03(ix)        ; LD (IX+$03),$02   ; Set counter
        movb @bytes+>10,*ix             ; LD (IX+$00),$10   ; Set sprite type
@@ -1449,7 +1449,7 @@ update_sprite_path:                    ; >88fe
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
 * This entry point is used by the routine at #R$892B.
 update_sprite_path_1:                  ; >890f
-       mov  a,r0
+       movb a,r0
        sb   @bytes+>10,a               ; SUB $10           ; Decrement upper nybble
        movb a,@>03(ix)                 ; LD (IX+$03),A     ; Store again
        cb   r0,@bytes+>10
@@ -1605,14 +1605,17 @@ _89b8:                                 ; >89b8
        movb @>06(ix),@l                ; LD L,(IX+$06)     ; Get path address
        movb @>07(ix),h                 ; LD H,(IX+$07)     ; ...
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
+       movb a,r0
        sb   @bytes+>10,a               ; SUB $10           ; Decrement upper nybble
        movb a,@>03(ix)                 ; LD (IX+$03),A     ; Save counter
-       jgt  move_sprite_along_path     ; JR NC,$89EB       ; If upper nybble >= 0 then jump ahead
-       jeq  move_sprite_along_path
+       cb   r0,@bytes+>10
+       jhe  move_sprite_along_path     ; JR NC,$89EB       ; If upper nybble >= 0 then jump ahead
        inc  hl                         ; INC HL            ; Next path address
        movb *hl,a                      ; LD A,(HL)         ; Get path byte
+       movb a,r0
        sb   @bytes+>10,a               ; SUB $10           ; Decrement upper nybble
-       jlt  _8a3c                      ; JR C,$8A3C        ; If < 0 then set flag and return
+       cb   r0,@bytes+>10
+       jl   _8a3c                      ; JR C,$8A3C        ; If < 0 then set flag and return
        andi a,>f000                    ; AND $F0           ; Isolate upper nybble
        movb a,b                        ; LD B,A            ; Save it
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
@@ -1787,21 +1790,19 @@ maybe_create_enemy_shot:               ; >8a76
 * I:A Polar x to move towards
 move_towards_x:                        ; >8ac0
        movb one,b                      ; LD B,$01          ; Direction = 1
-       sb   @>02(ix),a                 ; SUB (IX+$02)      ; Desired x - x
-       jne  !                          ; RET Z             ; Return if same
-       .ret                            ;
-!
-       jgt  _8acc                      ; JR NC,$8ACC       ; Jump if desired >= x
+       sb   @>02(ix),a                 ; SUB (IX+$02)      ; Distance = desired x - x
+       jeq  move_towards_x_3           ; RET Z             ; Return if same
+       jgt  move_towards_x_1           ; JR NC,$8ACC       ; Jump if distance > 0
        movb @b255,b                    ; LD B,$FF          ; Direction = -1
-       neg a                           ; NEG               ; x = -x
-_8acc:                                 ; >8acc
-;       cb   a,@bytes+>21               ; CP $21            ; Compare with top center
+       neg a                           ; NEG               ; abs(distance)
+move_towards_x_1:                      ; >8acc
+;       cb   a,@bytes+>21               ; CP $21            ; Is it longer than half way around?
        mov  a,r0
        movb b,a                        ; LD A,B            ; A = direction
        cb   r0,@bytes+>21
-       jlt  _8ad3                      ; JR C,$8AD3        ; Jump if left half
-       neg a                           ; NEG               ; Invert direction in right half
-_8ad3:                                 ; >8ad3
+       jl   move_towards_x_2           ; JR C,$8AD3        ; Jump if not
+       neg a                           ; NEG               ; Else switch direction
+move_towards_x_2:                      ; >8ad3
        movb a,b                        ; LD B,A            ; B = direction
        ab   @>02(ix),a                 ; ADD A,(IX+$02)    ; Direction + x
        andi a,>3f00                    ; AND $3F           ; Mod 64
@@ -1810,6 +1811,7 @@ _8ad3:                                 ; >8ad3
        ab   b,a                        ; ADD A,B           ; $10 + direction, i.e. $0F or $11
        movb a,*ix                      ; LD (IX+$00),A     ; Change sprite type
        ab   one,@>05(ix)               ; INC (IX+$05)      ; Mark for pattern reload
+move_towards_x_3:
        .ret                            ; RET               ;
 
 * Reset enemy sprite types after dying
@@ -2776,19 +2778,23 @@ logo_letter:                           ; >912a
        .rst >38                        ; RST $38           ; WRITE_VRAM
        li   hl,gyruss_logo             ; LD HL,$92DE       ; Gyruss logo
        .call @upload_patterns          ; CALL $84CB        ; Upload 20 patterns starting with 128
+       li   r0,>2100
+       li   r1,sprite_graphics_bin
+       li   r2,sprite_graphics_bin_end-sprite_graphics_bin
+       bl   @vmbw
        li   bc,>01e0                   ; LD BC,$01E0       ; Display on, interrupt on
        .rst >18                        ; RST $18           ; WRITE_REGISTER
-start_screen_loop:                     ; >9167
-       .halt                           ; HALT              ; Wait for interrupt
-       .call @display_stars            ; CALL $AFFF        ; Display stars
-       .call @upload_sprite_patterns   ; CALL $AE94        ;
-;       joc  !                          ; RET NC            ; Return if no carry
-       abs @carry
-       jeq start_screen_1
-       .call @upload_sprite_patterns   ; CALL $AE94        ;
-       abs  @carry
-       jne  start_screen_loop          ; JR C,$9167        ; Loop until no carry
-start_screen_1:
+;start_screen_loop:                     ; >9167
+;       .halt                           ; HALT              ; Wait for interrupt
+;       .call @display_stars            ; CALL $AFFF        ; Display stars
+;       .call @upload_sprite_patterns   ; CALL $AE94        ;
+;;       joc  !                          ; RET NC            ; Return if no carry
+;       abs @carry
+;       jeq start_screen_1
+;       .call @upload_sprite_patterns   ; CALL $AE94        ;
+;       abs  @carry
+;       jne  start_screen_loop          ; JR C,$9167        ; Loop until no carry
+;start_screen_1:
        .ret                            ; RET               ;
 
 * Display planet
@@ -5051,249 +5057,252 @@ _ae67:                                 ; >ae67
        jl   _ae75                      ; JR C,$AE75        ; Then decrement total enemies
        cb   a,@bytes+>14               ; CP $14            ; If >= $14 and < $18
        jhe  _ae75                      ; JR NC,$AE75       ; Then decrement total enemies
-       li   hl,active_enemy_shots      ; LD HL,$7252       ; Decrement active enemy shots
-       sb   one,*hl                    ; DEC (HL)          ; ...
+;       li   hl,active_enemy_shots      ; LD HL,$7252       ; Decrement active enemy shots
+;       sb   one,*hl                    ; DEC (HL)          ; ...
+       sb   one,@active_enemy_shots    ; Decrement active enemy shots
        jmp  _ae86                      ; JR $AE86          ; Set off-screen values and return
 _ae75:                                 ; >ae75
-       li   hl,total_enemies           ; LD HL,$7206       ; Decrement total enemies
-       sb   one,*hl                    ; DEC (HL)          ; ...
+;       li   hl,total_enemies           ; LD HL,$7206       ; Decrement total enemies
+;       sb   one,*hl                    ; DEC (HL)          ; ...
+       sb   one,@total_enemies         ; Decrement total enemies
        cb   a,@bytes+>15               ; CP $15            ; If < $15
        jl   _ae86                      ; JR C,$AE86        ; Then set off-screen values and return
        cb   a,@bytes+>18               ; CP $18            ; If >= $18
        jhe  _ae86                      ; JR NC,$AE86       ; Then set off-screen values and return
-       li   hl,other_flags             ; LD HL,$7256       ; $15 - $17 Reset flag
-       szcb @bits+3,*hl                ; RES 3,(HL)        ; ...
+;       li   hl,other_flags             ; LD HL,$7256       ; $15 - $17 Reset flag
+;       szcb @bits+3,*hl                ; RES 3,(HL)        ; ...
+       szcb @bits+3,@other_flags
 _ae86:                                 ; >ae86
        movb @bytes+>7f,*ix             ; LD (IX+$00),$7F   ; Set as not allocated
-       sb   @>09(ix),@>09(ix)          ; LD (IX+$09),$00   ; Set x
+       movb @zero,@>09(ix)             ; LD (IX+$09),$00   ; Set x
        movb @bytes+>f8,@>08(ix)        ; LD (IX+$08),$F8   ; Set y
        jmp  _ae4e                      ; JR $AE4E          ;
 
-* Upload sprite patterns
-*
-* Fill VDP RAM from $2100 to $3868 with sprite patterns that may be rotated and
-* flipped. One new pattern is generated with each call. Builds a table of VDP
-* addresses in #R$72E0. Used by the routine at #R$90D6.
-upload_sprite_patterns:                ; >ae94
-       seto @carry                     ; Set return value as not complete
-       movb @sprite_type_processed,a   ; LD A,($72D5)      ; Get sprite type
-       cb   a,@b255                    ; CP $FF            ; If maxed out
-       jne  !                          ; RET Z             ; Then return
-       b    @upload_sprite_patterns_end
-!      mov  @upload_destination,hl     ; LD HL,($72D8)     ; Get destination address (only used locally)
-;       movb h,a                        ; LD A,H            ; Is it zero?
-;       socb @l,a                       ; OR L              ; ...
-       jne  _aead                      ; JR NZ,$AEAD       ; No - skip ahead
-       li   hl,>2100                   ; LD HL,$2100       ; Yes - set it to $2100
-       mov  hl,@upload_destination     ; LD ($72D8),HL     ; ...
-       li   hl,sprite_pattern_vdp_addrs_table ; LD HL,$72E0       ; Set source to #R$72E0 (pointer to a RAM block)
-       mov  hl,@upload_source          ; LD ($72DC),HL     ; ...
-_aead:                                 ; >aead
-       movb @transformation_processed,a ; LD A,($72D6)      ; Get transformation processed
-       li   hl,pattern_processed       ; LD HL,$72D7       ; OR with pattern processed
-       socb *hl,a                      ; OR (HL)           ; ...
-       jne  _aec4                      ; JR NZ,$AEC4       ; If any is non-zero skip ahead
-       mov  @upload_source,hl          ; LD HL,($72DC)     ; HL = #R$72E0 initially. Table for storing VDP
-                                                           ; addresses.
-       mov  @upload_destination,de     ; LD DE,($72D8)     ; DE = $2100 initially. Destination in VDP RAM.
-;       movb @e,*hl                     ; LD (HL),E         ; Write destination address to word pointer to table.
-;       inc  hl                         ; INC HL            ; ...
-;       movb d,*hl                      ; LD (HL),D         ; ...
-;       inc  hl                         ; INC HL            ; ...
-       mov  de,*hl+
-       mov  hl,@upload_source          ; LD ($72DC),HL     ; Save updated pointer, e.g. $72E0
-_aec4:                                 ; >aec4
-       movb @sprite_type_processed,a   ; LD A,($72D5)      ; Get sprite type
-       li   hl,graphics_pointer_offsets_table ; LD HL,$B8DD       ; Table of 29 offsets into table at #R$B8FA
-       .rst >08                        ; RST $08           ; Add A to HL
-       movb *hl,@e                     ; LD E,(HL)         ; Load DE with offset
-       sb   d,d                        ; LD D,$00          ; ...
-       li   hl,graphics_pointers_table ; LD HL,$B8FA       ; Table of pointers to graphics
-       a    de,hl                      ; ADD HL,DE         ; Add offset
-       mov  hl,@graphics_pointer_address ; LD ($72DA),HL     ; Save address of pointer (control word)
-       movb @pattern_processed,a       ; LD A,($72D7)      ; Get pattern being processed
-       ab   one,a                      ; INC A             ; Increment
-       ab   a,a                        ; ADD A,A           ; Double
-       .rst >08                        ; RST $08           ; Add A to HL, so HL not points to a pattern pointer in
-                                                           ; #R$B8FA
-;       movb *hl,@e                     ; LD E,(HL)         ; Set DE = pointer to graphics
-;       inc  hl                         ; INC HL            ; ...
-;       movb *hl,d                      ; LD D,(HL)         ; ...
-       mov  *hl,de
-       .ex_de_hl                       ; EX DE,HL          ; Now HL points to graphics
-       movb @transformation_processed,a ; LD A,($72D6)      ; Get transformation processed
-       andi a,>0300                    ; AND $03           ; 0, 1, 2, 3
-;       ab   a,a                        ; ADD A,A           ; 0, 2, 4, 6
-;       ab   a,a                        ; ADD A,A           ; 0, 4, 8, 12
-;       ab   a,a                        ; ADD A,A           ; 0, 8, 16, 24
-       sla  a,3
-       .rst >08                        ; RST $08           ; Add A to HL
-       li   de,buffer                  ; LD DE,$71A3       ; Buffer
-       mov  de,@pattern_address        ; LD ($72DE),DE     ; Store as source address
-       li   bc,>0008                   ; LD BC,$0008       ; Copy 8 bytes
-       .ldir                           ; LDIR              ; of graphics data info buffer
-       mov  @graphics_pointer_address,hl ; LD HL,($72DA)     ; Get address of graphics pointer (control word)
-;      inc  hl                         ; INC HL            ; To MSB (changed since high endian)
-       movb *hl,a                      ; LD A,(HL)         ; Get MSB (transformation)
-;       socb a,a                        ; OR A              ; Is it 0, i.e. no transformation
-       jeq  _af15                      ; JR Z,$AF15        ; Then skip ahead
-       li   ix,transformation_processed ; LD IX,$72D6       ; Pointer to transformation
-       movb *ix,r0                     ; BIT 2,(IX+$00)    ; Is bit 2 set?
-       andi r0,>0400                   ;
-       jeq  _af09                      ; JR Z,$AF09        ; If not, skip ahead
-       .call @rotate                   ; CALL $AF6B        ; Rotate left
-_af09:                                 ; >af09
-       movb *ix,r0                     ; BIT 3,(IX+$00)    ; Is bit 3 set?
-       andi r0,>0800                   ;
-       jne  _af15                      ; JR NZ,$AF15       ; If not, skip ahead
-       .call @flip_vertical            ; CALL $AFAE        ; Upside down
-       .call @flip_horizontal          ; CALL $AFC2        ; Mirror
-_af15:                                 ; >af15
-       mov  @pattern_address,hl        ; LD HL,($72DE)     ; Source for writing to VDP RAM
-       mov  @upload_destination,de     ; LD DE,($72D8)     ; Destination
-       li   bc,>0008                   ; LD BC,$0008       ; 8 bytes
-       bl   @write_vram               ; CALL $1FDF        ; WRITE_VRAM
-       mov  @upload_destination,hl     ; LD HL,($72D8)     ; Get destination address
-       li   bc,>0008                   ; LD BC,$0008       ; Add 8
-       a    bc,hl                      ; ADD HL,BC         ; ...
-       mov  hl,@upload_destination     ; LD ($72D8),HL     ; Write back
-upload_next_pattern:                   ; >af2c
-       mov  @graphics_pointer_address,ix ; LD IX,($72DA)     ; Get address of graphics pointer (control word)
-       movb @pattern_processed,a       ; LD A,($72D7)      ; Get pattern processed
-       ab   one,a                      ; INC A             ; Increment it
-       cb   a,@1(ix)                   ; CP (IX+$00)       ; When it reaches LSB of control word (pattern count) (changed since high endian)
-       jhe  upload_next_transformation ; JR NC,$AF3E       ; Then move to next transformation
-       movb a,@pattern_processed       ; LD ($72D7),A      ; Otherwise store new value
-;      seto @carry                     ; SCF               ; Set carry flag
-       jmp  upload_sprite_patterns_end ; RET               ;
-upload_next_transformation:            ; >af3e
-       sb   a,a                        ; XOR A             ;
-       movb a,@pattern_processed       ; LD ($72D7),A      ; Set pattens processed zero
-       movb *ix,a                      ; LD A,(IX+$01)     ; Get transformation (changed since high endian)
-;       socb a,a                        ; OR A              ; Is it zero?
-       jeq  upload_next_sprite_type    ; JR Z,$AF55        ; Then move to next sprite type
-       movb @transformation_processed,a ; LD A,($72D6)      ; Get transformation processed
-       ab   one,a                      ; INC A             ; Increment it
-       cb   a,@bytes+>10               ; CP $10            ; When it reaches 16
-       jhe  upload_next_sprite_type    ; JR NC,$AF55       ; Then move to next sprite type
-       movb a,@transformation_processed ; LD ($72D6),A      ; Otherwise store new value
-;      seto @carry                     ; SCF               ; Set carry flag
-       jmp  upload_sprite_patterns_end ; RET               ;
-upload_next_sprite_type:               ; >af55
-       sb   a,a                        ; XOR A             ;
-       movb a,@transformation_processed ; LD ($72D6),A      ; Set transformation processed to zero
-       movb @sprite_type_processed,a   ; LD A,($72D5)      ; Increment sprite type processed
-       ab   one,a                      ; INC A             ; ...
-       movb a,@sprite_type_processed   ; LD ($72D5),A      ; ...
-       li   hl,>001d                   ; LD HL,$001D       ; When it's < $1D (29), which is the last sprite type
-       cb   a,@l                       ; CP L              ; ...
-       jlt  upload_sprite_patterns_end ; RET C             ; Then return with carry
-       movb @b255,a                    ; LD A,$FF          ; Else set it to $FF (done)
-       movb a,@sprite_type_processed   ; LD ($72D5),A      ; ...
-       clr  @carry                     ; Set return value as complete
-upload_sprite_patterns_end:
-       .ret                            ; RET               ;
-
-* Rotate pattern
-*
-* Take a pattern pointed to by #R$72DE and rotate it left 90 degrees. Returns
-* address of rotate pattern in #R$72DE. Used by the routine at #R$AE94.
-rotate:                                ; >af6b
-       mov  @pattern_address,hl        ; LD HL,($72DE)     ; HL = source address
-;       .push hl                        ; PUSH HL           ; Copy source into IY
-;       .pop iy                         ; POP IY            ; ...
-       mov  hl,iy
-       li   de,>0008                   ; LD DE,$0008       ; HL = destination address
-       a    de,hl                      ; ADD HL,DE         ; ...
-       mov  hl,@pattern_address        ; LD ($72DE),HL     ; Store destination
-       li   r0,1                       ; Number of bits to shift
-rotate_1:
-       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
-       clr  r2                         ; Result
-_af7a:                                 ; >af7a
-;       sla  *iy,1                      ; RL (IY+$00)       ; Shift bit 7 of source byte 0 into carry
-;       sra  *hl,1                      ; RR (HL)           ; Shift carry into bit 7 of destination byte
-;       sla  @>01(iy),1                 ; RL (IY+$01)       ; x2
-;       sra  *hl,1                      ; RR (HL)           ; ...
-;       sla  @>02(iy),1                 ; RL (IY+$02)       ; x3
-;       sra  *hl,1                      ; RR (HL)           ; ...
-;       sla  @>03(iy),1                 ; RL (IY+$03)       ; x4
-;       sra  *hl,1                      ; RR (HL)           ; ...
-;       sla  @>04(iy),1                 ; RL (IY+$04)       ; x5
-;       sra  *hl,1                      ; RR (HL)           ; ...
-;       sla  @>05(iy),1                 ; RL (IY+$05)       ; x6
-;       sra  *hl,1                      ; RR (HL)           ; ...
-;       sla  @>06(iy),1                 ; RL (IY+$06)       ; x7
-;       sra  *hl,1                      ; RR (HL)           ; ...
-;       sla  @>07(iy),1                 ; RL (IY+$07)       ; x8
-;       sra  *hl,1                      ; RR (HL)           ; ...
-       srl  r2,1                       ; Shift result right
-       movb *iy+,r1                    ; Get source byte
-       sla  r1,0                       ; Shift bit n into carry
-       jnc  !
-       socb @bytes+>80,r2              ; Set msb of result
-!      sb   one,b                      ; DJNZ $AF7A        ; Repeat 8 times
-       jne  _af7a                      ;
-       movb r2,*hl+                    ; Save result
-       ai   iy,-8                      ; Move source back to start
-;       inc  hl                         ; INC HL            ; Next destination
-       inc  r0                         ; Move to next bit
-       ci   r0,8
-       jle  rotate_1
-        .ret                            ; RET               ;
-
-* Flip pattern vertically
-*
-* Take a pattern pointed to by #R$72DE and flip it vertically (upside down).
-* Returns address of result in #R$72DE. Used by the routine at #R$AE94.
-flip_vertical:                         ; >afae
-       mov  @pattern_address,de        ; LD DE,($72DE)     ; DE = source address
-       li   hl,>0010                   ; LD HL,$0010       ; HL = right after end of destination buffer
-       a    de,hl                      ; ADD HL,DE         ; ...
-       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
-_afb8:                                 ; >afb8
-       movb *de,a                      ; LD A,(DE)         ; Get source byte
-       dec  hl                         ; DEC HL            ; Destination address moves backwards
-       movb a,*hl                      ; LD (HL),A         ; Store result
-       inc  de                         ; INC DE            ; Next source
-       sb   one,b                      ; DJNZ $AFB8        ; Repeat 8 times
-       jne  _afb8                      ;
-       mov  hl,@pattern_address        ; LD ($72DE),HL     ; Store destination
-       .ret                            ; RET               ;
-
-* Flip pattern horizontally
-*
-* Take a pattern pointed to by #R$72DE and flip it horizontally (mirrored).
-* Returns address of result in #R$72DE. Used by the routine at #R$AE94.
-flip_horizontal:                       ; >afc2
-       mov  @pattern_address,de        ; LD DE,($72DE)     ; DE = source address
-       li   hl,>0008                   ; LD HL,$0008       ; HL = destination address
-       a    de,hl                      ; ADD HL,DE         ; ...
-       mov  hl,@pattern_address        ; LD ($72DE),HL     ; Store destination
-       .ex_de_hl                       ; EX DE,HL          ; HL = source, DE = destination
-       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
-_afd0:                                 ; >afd0
-;       movb @bytes+>80,a               ; LD A,$80          ; Result starts with 10000000
-       li   r1,>8000
-       li   r2,8
-       sb   a,a
-       movb *hl,r0
-_afd2:                                 ; >afd2
-;       sla  *hl,1                      ; RL (HL)           ; Shift source byte left, bit 7 to carry
-;       srl  a,1                        ; RRA               ; Shift right, carry to bit 7, bit 0 to carry
-;       jnc  _afd2                      ; JR NC,$AFD2       ; Repeat until bit 7 reaches carry (8 times)
-       srl  a,1
-       sla  r0,1
-       jnc  !
-       socb r1,a
-!      dec  r2
-       jne  _afd2
-       movb a,*de                      ; LD (DE),A         ; Store result
-       inc  de                         ; INC DE            ; Next destination
-       inc  hl                         ; INC HL            ; Next source
-       sb   one,b                      ; DJNZ $AFD0        ; Repeat 8 times
-       jne  _afd0                      ;
-       .ret                            ; RET               ;
+;* Upload sprite patterns
+;*
+;* Fill VDP RAM from $2100 to $3868 with sprite patterns that may be rotated and
+;* flipped. One new pattern is generated with each call. Builds a table of VDP
+;* addresses in #R$72E0. Used by the routine at #R$90D6.
+;upload_sprite_patterns:                ; >ae94
+;       seto @carry                     ; Set return value as not complete
+;       movb @sprite_type_processed,a   ; LD A,($72D5)      ; Get sprite type
+;       cb   a,@b255                    ; CP $FF            ; If maxed out
+;       jne  !                          ; RET Z             ; Then return
+;       b    @upload_sprite_patterns_end
+;!      mov  @upload_destination,hl     ; LD HL,($72D8)     ; Get destination address (only used locally)
+;;       movb h,a                        ; LD A,H            ; Is it zero?
+;;       socb @l,a                       ; OR L              ; ...
+;       jne  _aead                      ; JR NZ,$AEAD       ; No - skip ahead
+;       li   hl,>2100                   ; LD HL,$2100       ; Yes - set it to $2100
+;       mov  hl,@upload_destination     ; LD ($72D8),HL     ; ...
+;       li   hl,sprite_pattern_vdp_addrs_table ; LD HL,$72E0       ; Set source to #R$72E0 (pointer to a RAM block)
+;       mov  hl,@upload_source          ; LD ($72DC),HL     ; ...
+;_aead:                                 ; >aead
+;       movb @transformation_processed,a ; LD A,($72D6)      ; Get transformation processed
+;       li   hl,pattern_processed       ; LD HL,$72D7       ; OR with pattern processed
+;       socb *hl,a                      ; OR (HL)           ; ...
+;       jne  _aec4                      ; JR NZ,$AEC4       ; If any is non-zero skip ahead
+;       mov  @upload_source,hl          ; LD HL,($72DC)     ; HL = #R$72E0 initially. Table for storing VDP
+;                                                           ; addresses.
+;       mov  @upload_destination,de     ; LD DE,($72D8)     ; DE = $2100 initially. Destination in VDP RAM.
+;;       movb @e,*hl                     ; LD (HL),E         ; Write destination address to word pointer to table.
+;;       inc  hl                         ; INC HL            ; ...
+;;       movb d,*hl                      ; LD (HL),D         ; ...
+;;       inc  hl                         ; INC HL            ; ...
+;       mov  de,*hl+
+;       mov  hl,@upload_source          ; LD ($72DC),HL     ; Save updated pointer, e.g. $72E0
+;_aec4:                                 ; >aec4
+;       movb @sprite_type_processed,a   ; LD A,($72D5)      ; Get sprite type
+;       li   hl,graphics_pointer_offsets_table ; LD HL,$B8DD       ; Table of 29 offsets into table at #R$B8FA
+;       .rst >08                        ; RST $08           ; Add A to HL
+;       movb *hl,@e                     ; LD E,(HL)         ; Load DE with offset
+;       sb   d,d                        ; LD D,$00          ; ...
+;       li   hl,graphics_pointers_table ; LD HL,$B8FA       ; Table of pointers to graphics
+;       a    de,hl                      ; ADD HL,DE         ; Add offset
+;       mov  hl,@graphics_pointer_address ; LD ($72DA),HL     ; Save address of pointer (control word)
+;       movb @pattern_processed,a       ; LD A,($72D7)      ; Get pattern being processed
+;       ab   one,a                      ; INC A             ; Increment
+;       ab   a,a                        ; ADD A,A           ; Double
+;       .rst >08                        ; RST $08           ; Add A to HL, so HL not points to a pattern pointer in
+;                                                           ; #R$B8FA
+;;       movb *hl,@e                     ; LD E,(HL)         ; Set DE = pointer to graphics
+;;       inc  hl                         ; INC HL            ; ...
+;;       movb *hl,d                      ; LD D,(HL)         ; ...
+;       mov  *hl,de
+;       .ex_de_hl                       ; EX DE,HL          ; Now HL points to graphics
+;       movb @transformation_processed,a ; LD A,($72D6)      ; Get transformation processed
+;       andi a,>0300                    ; AND $03           ; 0, 1, 2, 3
+;;       ab   a,a                        ; ADD A,A           ; 0, 2, 4, 6
+;;       ab   a,a                        ; ADD A,A           ; 0, 4, 8, 12
+;;       ab   a,a                        ; ADD A,A           ; 0, 8, 16, 24
+;       sla  a,3
+;       .rst >08                        ; RST $08           ; Add A to HL
+;       li   de,buffer                  ; LD DE,$71A3       ; Buffer
+;       mov  de,@pattern_address        ; LD ($72DE),DE     ; Store as source address
+;       li   bc,>0008                   ; LD BC,$0008       ; Copy 8 bytes
+;       .ldir                           ; LDIR              ; of graphics data info buffer
+;       mov  @graphics_pointer_address,hl ; LD HL,($72DA)     ; Get address of graphics pointer (control word)
+;;      inc  hl                         ; INC HL            ; To MSB (changed since high endian)
+;       movb *hl,a                      ; LD A,(HL)         ; Get MSB (transformation)
+;;       socb a,a                        ; OR A              ; Is it 0, i.e. no transformation
+;       jeq  _af15                      ; JR Z,$AF15        ; Then skip ahead
+;       li   ix,transformation_processed ; LD IX,$72D6       ; Pointer to transformation
+;       movb *ix,r0                     ; BIT 2,(IX+$00)    ; Is bit 2 set?
+;       andi r0,>0400                   ;
+;       jeq  _af09                      ; JR Z,$AF09        ; If not, skip ahead
+;       .call @rotate                   ; CALL $AF6B        ; Rotate left
+;_af09:                                 ; >af09
+;       movb *ix,r0                     ; BIT 3,(IX+$00)    ; Is bit 3 set?
+;       andi r0,>0800                   ;
+;       jne  _af15                      ; JR NZ,$AF15       ; If not, skip ahead
+;       .call @flip_vertical            ; CALL $AFAE        ; Upside down
+;       .call @flip_horizontal          ; CALL $AFC2        ; Mirror
+;_af15:                                 ; >af15
+;       mov  @pattern_address,hl        ; LD HL,($72DE)     ; Source for writing to VDP RAM
+;       mov  @upload_destination,de     ; LD DE,($72D8)     ; Destination
+;       li   bc,>0008                   ; LD BC,$0008       ; 8 bytes
+;       bl   @write_vram               ; CALL $1FDF        ; WRITE_VRAM
+;       mov  @upload_destination,hl     ; LD HL,($72D8)     ; Get destination address
+;       li   bc,>0008                   ; LD BC,$0008       ; Add 8
+;       a    bc,hl                      ; ADD HL,BC         ; ...
+;       mov  hl,@upload_destination     ; LD ($72D8),HL     ; Write back
+;upload_next_pattern:                   ; >af2c
+;       mov  @graphics_pointer_address,ix ; LD IX,($72DA)     ; Get address of graphics pointer (control word)
+;       movb @pattern_processed,a       ; LD A,($72D7)      ; Get pattern processed
+;       ab   one,a                      ; INC A             ; Increment it
+;       cb   a,@1(ix)                   ; CP (IX+$00)       ; When it reaches LSB of control word (pattern count) (changed since high endian)
+;       jhe  upload_next_transformation ; JR NC,$AF3E       ; Then move to next transformation
+;       movb a,@pattern_processed       ; LD ($72D7),A      ; Otherwise store new value
+;;      seto @carry                     ; SCF               ; Set carry flag
+;       jmp  upload_sprite_patterns_end ; RET               ;
+;upload_next_transformation:            ; >af3e
+;       sb   a,a                        ; XOR A             ;
+;       movb a,@pattern_processed       ; LD ($72D7),A      ; Set pattens processed zero
+;       movb *ix,a                      ; LD A,(IX+$01)     ; Get transformation (changed since high endian)
+;;       socb a,a                        ; OR A              ; Is it zero?
+;       jeq  upload_next_sprite_type    ; JR Z,$AF55        ; Then move to next sprite type
+;       movb @transformation_processed,a ; LD A,($72D6)      ; Get transformation processed
+;       ab   one,a                      ; INC A             ; Increment it
+;       cb   a,@bytes+>10               ; CP $10            ; When it reaches 16
+;       jhe  upload_next_sprite_type    ; JR NC,$AF55       ; Then move to next sprite type
+;       movb a,@transformation_processed ; LD ($72D6),A      ; Otherwise store new value
+;;      seto @carry                     ; SCF               ; Set carry flag
+;       jmp  upload_sprite_patterns_end ; RET               ;
+;upload_next_sprite_type:               ; >af55
+;       sb   a,a                        ; XOR A             ;
+;       movb a,@transformation_processed ; LD ($72D6),A      ; Set transformation processed to zero
+;       movb @sprite_type_processed,a   ; LD A,($72D5)      ; Increment sprite type processed
+;       ab   one,a                      ; INC A             ; ...
+;       movb a,@sprite_type_processed   ; LD ($72D5),A      ; ...
+;       li   hl,>001d                   ; LD HL,$001D       ; When it's < $1D (29), which is the last sprite type
+;       cb   a,@l                       ; CP L              ; ...
+;       jlt  upload_sprite_patterns_end ; RET C             ; Then return with carry
+;       movb @b255,a                    ; LD A,$FF          ; Else set it to $FF (done)
+;       movb a,@sprite_type_processed   ; LD ($72D5),A      ; ...
+;       clr  @carry                     ; Set return value as complete
+;upload_sprite_patterns_end:
+;       .ret                            ; RET               ;
+;
+;* Rotate pattern
+;*
+;* Take a pattern pointed to by #R$72DE and rotate it left 90 degrees. Returns
+;* address of rotate pattern in #R$72DE. Used by the routine at #R$AE94.
+;rotate:                                ; >af6b
+;       mov  @pattern_address,hl        ; LD HL,($72DE)     ; HL = source address
+;;       .push hl                        ; PUSH HL           ; Copy source into IY
+;;       .pop iy                         ; POP IY            ; ...
+;       mov  hl,iy
+;       li   de,>0008                   ; LD DE,$0008       ; HL = destination address
+;       a    de,hl                      ; ADD HL,DE         ; ...
+;       mov  hl,@pattern_address        ; LD ($72DE),HL     ; Store destination
+;       li   r0,1                       ; Number of bits to shift
+;rotate_1:
+;       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
+;       clr  r2                         ; Result
+;_af7a:                                 ; >af7a
+;;       sla  *iy,1                      ; RL (IY+$00)       ; Shift bit 7 of source byte 0 into carry
+;;       sra  *hl,1                      ; RR (HL)           ; Shift carry into bit 7 of destination byte
+;;       sla  @>01(iy),1                 ; RL (IY+$01)       ; x2
+;;       sra  *hl,1                      ; RR (HL)           ; ...
+;;       sla  @>02(iy),1                 ; RL (IY+$02)       ; x3
+;;       sra  *hl,1                      ; RR (HL)           ; ...
+;;       sla  @>03(iy),1                 ; RL (IY+$03)       ; x4
+;;       sra  *hl,1                      ; RR (HL)           ; ...
+;;       sla  @>04(iy),1                 ; RL (IY+$04)       ; x5
+;;       sra  *hl,1                      ; RR (HL)           ; ...
+;;       sla  @>05(iy),1                 ; RL (IY+$05)       ; x6
+;;       sra  *hl,1                      ; RR (HL)           ; ...
+;;       sla  @>06(iy),1                 ; RL (IY+$06)       ; x7
+;;       sra  *hl,1                      ; RR (HL)           ; ...
+;;       sla  @>07(iy),1                 ; RL (IY+$07)       ; x8
+;;       sra  *hl,1                      ; RR (HL)           ; ...
+;       srl  r2,1                       ; Shift result right
+;       movb *iy+,r1                    ; Get source byte
+;       sla  r1,0                       ; Shift bit n into carry
+;       jnc  !
+;       socb @bytes+>80,r2              ; Set msb of result
+;!      sb   one,b                      ; DJNZ $AF7A        ; Repeat 8 times
+;       jne  _af7a                      ;
+;       movb r2,*hl+                    ; Save result
+;       ai   iy,-8                      ; Move source back to start
+;;       inc  hl                         ; INC HL            ; Next destination
+;       inc  r0                         ; Move to next bit
+;       ci   r0,8
+;       jle  rotate_1
+;        .ret                            ; RET               ;
+;
+;* Flip pattern vertically
+;*
+;* Take a pattern pointed to by #R$72DE and flip it vertically (upside down).
+;* Returns address of result in #R$72DE. Used by the routine at #R$AE94.
+;flip_vertical:                         ; >afae
+;       mov  @pattern_address,de        ; LD DE,($72DE)     ; DE = source address
+;       li   hl,>0010                   ; LD HL,$0010       ; HL = right after end of destination buffer
+;       a    de,hl                      ; ADD HL,DE         ; ...
+;       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
+;_afb8:                                 ; >afb8
+;       movb *de,a                      ; LD A,(DE)         ; Get source byte
+;       dec  hl                         ; DEC HL            ; Destination address moves backwards
+;       movb a,*hl                      ; LD (HL),A         ; Store result
+;       inc  de                         ; INC DE            ; Next source
+;       sb   one,b                      ; DJNZ $AFB8        ; Repeat 8 times
+;       jne  _afb8                      ;
+;       mov  hl,@pattern_address        ; LD ($72DE),HL     ; Store destination
+;       .ret                            ; RET               ;
+;
+;* Flip pattern horizontally
+;*
+;* Take a pattern pointed to by #R$72DE and flip it horizontally (mirrored).
+;* Returns address of result in #R$72DE. Used by the routine at #R$AE94.
+;flip_horizontal:                       ; >afc2
+;       mov  @pattern_address,de        ; LD DE,($72DE)     ; DE = source address
+;       li   hl,>0008                   ; LD HL,$0008       ; HL = destination address
+;       a    de,hl                      ; ADD HL,DE         ; ...
+;       mov  hl,@pattern_address        ; LD ($72DE),HL     ; Store destination
+;       .ex_de_hl                       ; EX DE,HL          ; HL = source, DE = destination
+;       movb @bytes+>08,b               ; LD B,$08          ; 8 bytes in pattern
+;_afd0:                                 ; >afd0
+;;       movb @bytes+>80,a               ; LD A,$80          ; Result starts with 10000000
+;       li   r1,>8000
+;       li   r2,8
+;       sb   a,a
+;       movb *hl,r0
+;_afd2:                                 ; >afd2
+;;       sla  *hl,1                      ; RL (HL)           ; Shift source byte left, bit 7 to carry
+;;       srl  a,1                        ; RRA               ; Shift right, carry to bit 7, bit 0 to carry
+;;       jnc  _afd2                      ; JR NC,$AFD2       ; Repeat until bit 7 reaches carry (8 times)
+;       srl  a,1
+;       sla  r0,1
+;       jnc  !
+;       socb r1,a
+;!      dec  r2
+;       jne  _afd2
+;       movb a,*de                      ; LD (DE),A         ; Store result
+;       inc  de                         ; INC DE            ; Next destination
+;       inc  hl                         ; INC HL            ; Next source
+;       sb   one,b                      ; DJNZ $AFD0        ; Repeat 8 times
+;       jne  _afd0                      ;
+;       .ret                            ; RET               ;
 
 * Ship exhaust position relative to ship body
 exhaust_position_table:                ; >afdd

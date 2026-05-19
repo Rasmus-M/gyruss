@@ -2,8 +2,13 @@
        copy "sound-player.a99"
        copy "cv-routines.a99"
        copy "ti-routines.a99"
-       copy "graphics.a99"
        copy "wave-data.a99"
+;       copy "sprite-graphics.a99"
+       copy "sprite-graphics-stub.a99"
+sprite_graphics_bin:
+       bcopy "sprite-graphics.bin"
+sprite_graphics_bin_end:
+       equ  $
 
 upper_memory_max:
        equ  $
