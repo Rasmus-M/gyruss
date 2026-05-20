@@ -93,7 +93,7 @@
        bl   @allocate_sprite           ; JP $AD49          ; Allocate_sprite
        .endif
        .ifeq #1,>30
-       .call @load_sprite_pattern      ; JP $AD8B          ; Load sprite pattern
+       .call @load_sprite_pattern_fast ; JP $AD8B          ; Load sprite pattern
        .endif
        .ifeq #1,>38
        bl    @write_vram               ; JP $1FDF          ; WRITE_VRAM (HL = source, DE = dest, BC = count)

@@ -147,22 +147,22 @@ died:                                  ; >8139
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
        .call @reset_enemy_sprite_types ; CALL $8AE6        ; Update sprite types $0F - $11
        .call @explode                  ; CALL $A3E1        ; Explosion
-_814f:                                 ; >814f
+died_1:                                 ; >814f
        movb @active_enemies,a          ; LD A,($722C)      ; Get active enemies
 ;       socb a,a                        ; OR A              ;
-       jne  _815e                      ; JR NZ,$815E       ;
+       jne  died_2                     ; JR NZ,$815E       ; If any left then keep waiting
        movb @total_enemies,a           ; LD A,($7206)      ; Get total enemies
-       li   hl,center_map_entries      ; LD HL,$722B       ;
-       cb   a,*hl                      ; CP (HL)           ;
-       jeq  lose_life                  ; JR Z,$8170        ;
-_815e:                                 ; >815e
+       li   hl,center_map_entries      ; LD HL,$722B       ; Compare to center entries
+       cb   a,*hl                      ; CP (HL)           ; ...
+       jeq  lose_life                  ; JR Z,$8170        ; When all are centered then jump to lose life
+died_2:                                ; >815e
        .halt                           ; HALT              ;
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @process_sprites          ; CALL $85E6        ; Process sprites
-       .call @create_or_display_mines  ; CALL $8E2D        ;
+       .call @create_or_display_mines  ; CALL $8E2D        ; Create or display mines
        .call @display_center_enemies   ; CALL $AB72        ; Display center enemies
        .call @next_frame_upl_sprites   ; CALL $84B1        ; Upload sprites
-       jmp  _814f                      ; JR $814F          ;
+       jmp  died_1                     ; JR $814F          ;
 
 * Lose life
 *
@@ -4902,142 +4902,240 @@ allocate_sprite_4:                     ; >ad87
 * Used by the routine at #R$801B.
 *
 * I:IX Pointer to sprite data
-load_sprite_pattern:                   ; >ad8b
-       .push hl                        ; PUSH HL           ;
-       .push de                        ; PUSH DE           ;
-       .push bc                        ; PUSH BC           ;
-       .push iy                        ; PUSH IY           ;
-       movb *ix,@e                     ; LD E,(IX+$00)     ; DE = Sprite type
-       sb   d,d                        ; LD D,$00          ; ...
-       li   hl,graphics_pointer_offsets_table ; LD HL,$B8DD       ; Table of offsets for each sprite type into table at
-                                                           ; #R$B8FA
-       a    de,hl                      ; ADD HL,DE         ; Add sprite type
-       movb *hl,@e                     ; LD E,(HL)         ; Get graphics pointer offset for sprite type
-       li   hl,graphics_pointers_table ; LD HL,$B8FA       ; Table of pointers to graphics
-       a    de,hl                      ; ADD HL,DE         ; HL now points to graphics pointer (control word)
-       movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y, which determines which scale we want
-       li   de,>0000                   ; LD DE,$0000       ; Pattern index within sprite type
-       movb a,r0                       ; BIT 7,A           ; If bit 7 of polar y is set, skip ahead with E=0
-       andi r0,>8000                   ;
-       jne  _adb7                      ; JR NZ,$ADB7       ; ...
-       cb   a,@bytes+>15               ; CP $15            ; Skip ahead if polar y < 21
-       jl   _adb7                      ; JR C,$ADB7        ; ...
-       ab   one,@e                     ; INC E             ; Else set E = 1
-       cb   a,@bytes+>1a               ; CP $1A            ; Skip ahead if polar y < 26
-       jl   _adb7                      ; JR C,$ADB7        ; ...
-       ab   one,@e                     ; INC E             ; Else set E = 2
-       cb   a,@bytes+>22               ; CP $22            ; Skip ahead if polar y < 34
-       jl   _adb7                      ; JR C,$ADB7        ; ...
-       ab   one,@e                     ; INC E             ; Else set E = 3
-_adb7:                                 ; >adb7
-       movb @e,a                       ; LD A,E            ; A = pattern index
-       inc  hl                         ; (changed since high endian)
-       cb   a,*hl                      ; CP (HL)           ; Compare with control word LSB (number of patterns for
-                                                           ; sprite type)
-       jl   _adbd                      ; JR C,$ADBD        ; If number of patterns > pattern index, skip next
-       movb *hl,a                      ; LD A,(HL)         ; Requested pattern is unavailable
-       sb   one,a                      ; DEC A             ; so shoose the last one.
-_adbd:                                 ; >adbd
-       dec  hl                         ; INC HL            ; Advance to MSB (transformation) (changed since high endian)
-       movb *hl,b                      ; LD B,(HL)         ; B = transformation
-       movb a,@c                       ; LD C,A            ; C = number of patterns - 1
-       movb @>02(ix),a                 ; LD A,(IX+$02)     ; Get polar x
-       ab   @bytes+>02,a               ; ADD A,$02         ; Plus 2
-       andi a,>3f00                    ; AND $3F           ; Mod 64
-       movb a,@>05(ix)                 ; LD (IX+$05),A     ; Save in sprite data
-;       ab   one,b                      ; INC B             ; If transformation > 0
-;       sb   one,b                      ; DEC B             ; ...
-       movb b,b
-       jne  _add1                      ; JR NZ,$ADD1       ; Then skip ahead
-       sb   a,a                        ; XOR A             ; Else set A = 0
-       jmp  _add7                      ; JR $ADD7          ; And skip ahead
-_add1:                                 ; >add1
-;       srl  a,1                        ; SRL A             ; Divide polar x by 2
-;       sb   one,b                      ; DJNZ $ADD1        ; B times
-;       jne  _add1                      ;
-;       ab   a,a                        ; ADD A,A           ; * 4
-;       ab   a,a                        ; ADD A,A           ; ...
-       clr  r0
-       movb b,@r0lb
-       srl  a,0
-       andi af,>ff00
-       sla  a,2
-_add7:                                 ; >add7
-       ab   @c,a                       ; ADD A,C           ; + number of patterns - 1
-       movb a,b                        ; LD B,A            ; Copy result into B, which is the index of pattern to
-                                                           ; fetch within sprite type
-       cb   a,@>04(ix)                 ; CP (IX+$04)       ; Same as existing?
-       jeq  _ae11                      ; JR Z,$AE11        ; If so, skip ahead
-       movb a,@>04(ix)                 ; LD (IX+$04),A     ; Save new value
-       movb *ix,@l                     ; LD L,(IX+$00)     ; HL = Sprite type
-       sb   h,h                        ; LD H,$00          ; ...
-       a    hl,hl                      ; ADD HL,HL         ; * 2
-       li   de,sprite_pattern_vdp_addrs_table ; LD DE,$72E0       ; Table address
-       a    de,hl                      ; ADD HL,DE         ; #R$72E0 + sprite type * 2
-;       movb *hl,@e                     ; LD E,(HL)         ; Get LSB of VDP address
-;       inc  hl                         ; INC HL            ; TO MSB
-;       movb *hl,d                      ; LD D,(HL)         ; Get MSB of VDP address
-       mov  *hl,de
-       movb b,@l                       ; LD L,B            ; HL = Index of pattern to fetch within sprite type
-       sb   h,h                        ; LD H,$00          ; ...
-;       a    hl,hl                      ; ADD HL,HL         ; Multiply by 8
-;       a    hl,hl                      ; ADD HL,HL         ; ...
-;       a    hl,hl                      ; ADD HL,HL         ; ...
-       sla  hl,3
-       a    de,hl                      ; ADD HL,DE         ; And add base VDP address
-       .ex_de_hl                       ; EX DE,HL          ; Move HL into DE, which becomes source address
-       li   hl,buffer                  ; LD HL,$71A3       ; Buffer
-       li   bc,>0008                   ; LD BC,$0008       ; Read 8 bytes
-       .call @read_vram                ; CALL $1FE2        ; READ_VRAM
-       clr  af
-       movb @>0a(ix),a                 ; LD A,(IX+$0A)     ; Get pattern
-;       ab   a,a                        ; ADD A,A           ; Multiply by 8
-;       ab   a,a                        ; ADD A,A           ; ...
-;       ab   a,a                        ; ADD A,A           ; ...
-       sla  a,3
-       movb a,@e                       ; LD E,A            ; ...
-       movb @bytes+>08,d               ; LD D,$08          ; DE = $800 + pattern * 8
-       li   hl,buffer                  ; LD HL,$71A3       ; Source
-       li   bc,>0008                   ; LD BC,$0008       ; Write 8 bytes
-       bl   @write_vram               ; CALL $1FDF        ; WRITE_VRAM
-_ae11:                                 ; >ae11
-       movb *ix,a                      ; LD A,(IX+$00)     ; Get sprite type
-       cb   a,one                      ; CP $01            ; If 1, i.e. ship exhaust
-       jeq  _ae2b                      ; JR Z,$AE2B        ; Then skip ahead
-       movb @>01(ix),d                 ; LD D,(IX+$01)     ; Polar y
-       movb @>02(ix),@e                ; LD E,(IX+$02)     ; Polar x
-       .call @polar_to_screen          ; CALL $B1C6        ; Polar to screen
-       movb d,@>08(ix)                 ; LD (IX+$08),D     ; Set y
-       movb @e,@>09(ix)                ; LD (IX+$09),E     ; Set x
-;       joc  handle_off_screen_sprite   ; JR C,$AE54        ; If carry, sprite is outside visible screen, skip ahead
-       abs  @carry
-       jne  handle_off_screen_sprite
-       jmp  _ae4e                      ; JR $AE4E          ; Return
-_ae2b:                                 ; >ae2b
-       li   hl,exhaust_position_table  ; LD HL,$AFDD       ; If sprite type is ship exhaust, set HL to table address
-       movb @>04(ix),a                 ; LD A,(IX+$04)     ; Pattern index
-       andi a,>0300                    ; AND $03           ; Mod 4
-       jne  _ae3f                      ; JR NZ,$AE3F       ; If not zero, skip ahead
-       movb @>05(ix),a                 ; LD A,(IX+$05)     ; Get polar x (saved by #R$ADC7?)
-       srl  a,1                        ; RRA               ; / 2
-       andi a,>1e00                    ; AND $1E           ; 0, 2, 4 ... $1E
-       li   hl,exhaust_position_table+>0002 ; LD HL,$AFDF       ; #R$AFDD+2
-       .rst >08                        ; RST $08           ; Add A to HL
-_ae3f:                                 ; >ae3f
-       movb @sprite_data+>0008,a       ; LD A,($700A)      ; Ship screen y
-       ab   *hl,a                      ; ADD A,(HL)        ; Add table value
-       movb a,@>08(ix)                 ; LD (IX+$08),A     ; Set y
-       inc  hl                         ; INC HL            ; Next table address
-       movb @sprite_data+>0009,a       ; LD A,($700B)      ; Ship screen x
-       ab   *hl,a                      ; ADD A,(HL)        ; Add table value
-       movb a,@>09(ix)                 ; LD (IX+$09),A     ; Set x
-* This entry point is used by the routines at #R$AE54 and #R$AE75.
-_ae4e:                                 ; >ae4e
-       .pop iy                         ; POP IY            ;
-       .pop bc                         ; POP BC            ;
-       .pop de                         ; POP DE            ;
-       .pop hl                         ; POP HL            ;
-       .ret                            ; RET               ;
+load_sprite_pattern_fast:
+       clr  r1                                 ; r1 = sprite type
+       movb *ix,@r1lb                          ; ...
+       sla  r1,1                               ; Word offset
+       mov  r1,r12                             ; Save it for later
+       mov  @graphics_pointers_table(r1),r1    ; r1 = control word
+       clr  r2                                 ; Scale
+       movb @>01(ix),r0                        ; Get polar y, which determines which scale we want
+       jlt  load_sprite_pattern_fast_1         ; If bit 7 of polar y is set, skip ahead with E=0
+       cb   r0,@bytes+>15                      ; Skip ahead if polar y < 21
+       jl   load_sprite_pattern_fast_1         ; ...
+       inc  r2                                 ; Else set scale = 1
+       cb   r0,@bytes+>1a                      ; Skip ahead if polar y < 26
+       jl   load_sprite_pattern_fast_1         ; ...
+       inc  r2                                 ; Else set scale = 2
+       cb   r0,@bytes+>22                      ; Skip ahead if polar y < 34
+       jl   load_sprite_pattern_fast_1         ; ...
+       inc  r2                                 ; Else set scale = 3
+load_sprite_pattern_fast_1:
+       mov  r1,r0                              ; Get control word
+       andi r0,>00ff                           ; Number of scales
+       c    r2,r0                              ; Compare with requested scale
+       jl   load_sprite_pattern_fast_2         ; If smaller we're good
+       dec  r0                                 ; Else choose the last one
+       mov  r0,r2                              ; ...
+load_sprite_pattern_fast_2:
+       movb @>02(ix),a                         ; Get polar x
+       ab   @bytes+>02,a                       ; Plus 2
+       andi a,>3f00                            ; Mod 64
+       movb a,@>05(ix)                         ; Save in sprite data
+       movb r1,r0                              ; Get number of rotations (0 = 2^0 = 1 or 2 = 2^2 = 4)
+       jeq  load_sprite_pattern_fast_3         ; Jump ahead if zero
+       movb a,r0
+       andi r0,>fc00                           ; Shift two times right and multiply by 4
+load_sprite_pattern_fast_3:
+       swpb r2                                 ; Scale to LSB
+       ab   r2,r0                              ; Add scale to rotation offset
+       cb   r0,@>04(ix)                        ; Same as existing?
+       jeq  load_sprite_pattern_fast_4         ; If so, skip uploading pattern
+       movb r0,@>04(ix)                        ; Save new value
+       andi r0,>ff00                           ; Clear LSB
+       mov  r0,r1                              ; Copy to source address
+       srl  r1,5                               ; To LSB and multiply by 8
+       a    @sprite_pttrn_addrs_table(r12),r1  ; Add source base address
+       movb @>0a(ix),r0                        ; Destination pattern
+       swpb r0                                 ; To LSB
+       sla  r0,3                               ; Multiply by 8
+       ai   r0,>800                            ; Add destination base address
+       bl   @vwad                              ; Setup VDP write adress
+       li   r0,vdpwd
+       movb *r1+,*r0                           ; Write 8 bytes
+       movb *r1+,*r0                           ; ...
+       movb *r1+,*r0                           ; ...
+       movb *r1+,*r0                           ; ...
+       movb *r1+,*r0                           ; ...
+       movb *r1+,*r0                           ; ...
+       movb *r1+,*r0                           ; ...
+       movb *r1+,*r0                           ; ...
+load_sprite_pattern_fast_4:
+       cb   *ix,one                            ; Is sprite type ship exhaust?
+       jeq  load_sprite_pattern_fast_5         ; Then skip ahead
+       movb @>01(ix),d                         ; Polar y
+       movb @>02(ix),@e                        ; Polar x
+       .call @polar_to_screen                  ; Polar to screen
+       movb d,@>08(ix)                         ; Set y
+       movb @e,@>09(ix)                        ; Set x
+       abs  @carry                             ; If carry, sprite is outside visible screen
+       jeq  load_sprite_pattern_fast_7         ; Return if no carry
+       bl   @handle_off_screen_sprite          ; Else handle off-screen
+       jmp  load_sprite_pattern_fast_7         ; Return
+load_sprite_pattern_fast_5:
+       li   r1,exhaust_position_table          ; If sprite type is ship exhaust, set r1 to table address
+       movb @>04(ix),a                         ; Pattern index
+       andi a,>0300                            ; Mod 4
+       jne  load_sprite_pattern_fast_6         ; If not zero, skip ahead
+       movb @>05(ix),a                         ; Get updated polar x (saved earlier)
+       srl  a,1                                ; / 2
+       andi a,>1e00                            ; 0, 2, 4 ... >1E
+       li   r1,exhaust_position_table+>0002
+       swpb af
+       a    af,r1                              ; Add to table address
+load_sprite_pattern_fast_6:
+       movb @sprite_data+>0008,a               ; Ship screen y
+       ab   *r1+,a                             ; Add table value
+       movb a,@>08(ix)                         ; Set y
+       movb @sprite_data+>0009,a               ; Ship screen x
+       ab   *r1,a                              ; Add table value
+       movb a,@>09(ix)                         ; Set x
+load_sprite_pattern_fast_7:
+       .ret
+
+;* Load sprite pattern (RST $30)
+;*
+;* Ensure sprite pattern is loaded and set screen position.
+;* Used by the routine at #R$801B.
+;*
+;* I:IX Pointer to sprite data
+;load_sprite_pattern:                   ; >ad8b
+;       .push hl                        ; PUSH HL           ;
+;       .push de                        ; PUSH DE           ;
+;       .push bc                        ; PUSH BC           ;
+;       .push iy                        ; PUSH IY           ;
+;       movb *ix,@e                     ; LD E,(IX+$00)     ; DE = Sprite type
+;       sb   d,d                        ; LD D,$00          ; ...
+;       li   hl,graphics_pointer_offsets_table ; LD HL,$B8DD       ; Table of offsets for each sprite type into table at
+;                                                           ; #R$B8FA
+;       a    de,hl                      ; ADD HL,DE         ; Add sprite type
+;       movb *hl,@e                     ; LD E,(HL)         ; Get graphics pointer offset for sprite type
+;       li   hl,graphics_pointers_table ; LD HL,$B8FA       ; Table of pointers to graphics
+;       a    de,hl                      ; ADD HL,DE         ; HL now points to graphics pointer (control word)
+;       movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y, which determines which scale we want
+;       li   de,>0000                   ; LD DE,$0000       ; Scale within sprite type
+;       movb a,r0                       ; BIT 7,A           ; If bit 7 of polar y is set, skip ahead with scale=0
+;       andi r0,>8000                   ;
+;       jne  _adb7                      ; JR NZ,$ADB7       ; ...
+;       cb   a,@bytes+>15               ; CP $15            ; Skip ahead if polar y < 21
+;       jl   _adb7                      ; JR C,$ADB7        ; ...
+;       ab   one,@e                     ; INC E             ; Else set scale = 1
+;       cb   a,@bytes+>1a               ; CP $1A            ; Skip ahead if polar y < 26
+;       jl   _adb7                      ; JR C,$ADB7        ; ...
+;       ab   one,@e                     ; INC E             ; Else set scale = 2
+;       cb   a,@bytes+>22               ; CP $22            ; Skip ahead if polar y < 34
+;       jl   _adb7                      ; JR C,$ADB7        ; ...
+;       ab   one,@e                     ; INC E             ; Else set scale = 3
+;_adb7:                                 ; >adb7
+;       movb @e,a                       ; LD A,E            ; A = pattern index
+;       inc  hl                         ; (changed since high endian)
+;       cb   a,*hl                      ; CP (HL)           ; Compare with control word LSB (number of scales for
+;                                                           ; sprite type)
+;       jl   _adbd                      ; JR C,$ADBD        ; If number of scales > scale, skip next
+;       movb *hl,a                      ; LD A,(HL)         ; Requested scale is unavailable
+;       sb   one,a                      ; DEC A             ; so choose the last one.
+;_adbd:                                 ; >adbd
+;       dec  hl                         ; INC HL            ; Advance to MSB (transformation) (changed since high endian)
+;       movb *hl,b                      ; LD B,(HL)         ; B = transformation
+;       movb a,@c                       ; LD C,A            ; C = scale
+;       movb @>02(ix),a                 ; LD A,(IX+$02)     ; Get polar x
+;       ab   @bytes+>02,a               ; ADD A,$02         ; Plus 2
+;       andi a,>3f00                    ; AND $3F           ; Mod 64
+;       movb a,@>05(ix)                 ; LD (IX+$05),A     ; Save in sprite data
+;;       ab   one,b                      ; INC B             ; If transformation > 0
+;;       sb   one,b                      ; DEC B             ; ...
+;       movb b,b
+;       jne  _add1                      ; JR NZ,$ADD1       ; Then skip ahead
+;       sb   a,a                        ; XOR A             ; Else set A = 0
+;       jmp  _add7                      ; JR $ADD7          ; And skip ahead
+;_add1:                                 ; >add1
+;;       srl  a,1                        ; SRL A             ; Divide polar x by 2
+;;       sb   one,b                      ; DJNZ $ADD1        ; B times
+;;       jne  _add1                      ;
+;;       ab   a,a                        ; ADD A,A           ; * 4
+;;       ab   a,a                        ; ADD A,A           ; ...
+;       clr  r0
+;       movb b,@r0lb
+;       srl  a,0
+;       andi af,>ff00
+;       sla  a,2
+;_add7:                                 ; >add7
+;       ab   @c,a                       ; ADD A,C           ; + number of patterns - 1
+;       movb a,b                        ; LD B,A            ; Copy result into B, which is the index of pattern to
+;                                                           ; fetch within sprite type
+;       cb   a,@>04(ix)                 ; CP (IX+$04)       ; Same as existing?
+;       jeq  _ae11                      ; JR Z,$AE11        ; If so, skip ahead
+;       movb a,@>04(ix)                 ; LD (IX+$04),A     ; Save new value
+;       movb *ix,@l                     ; LD L,(IX+$00)     ; HL = Sprite type
+;       sb   h,h                        ; LD H,$00          ; ...
+;       a    hl,hl                      ; ADD HL,HL         ; * 2
+;       li   de,sprite_pattern_vdp_addrs_table ; LD DE,$72E0       ; Table address
+;       a    de,hl                      ; ADD HL,DE         ; #R$72E0 + sprite type * 2
+;;       movb *hl,@e                     ; LD E,(HL)         ; Get LSB of VDP address
+;;       inc  hl                         ; INC HL            ; TO MSB
+;;       movb *hl,d                      ; LD D,(HL)         ; Get MSB of VDP address
+;       mov  *hl,de
+;       movb b,@l                       ; LD L,B            ; HL = Index of pattern to fetch within sprite type
+;       sb   h,h                        ; LD H,$00          ; ...
+;;       a    hl,hl                      ; ADD HL,HL         ; Multiply by 8
+;;       a    hl,hl                      ; ADD HL,HL         ; ...
+;;       a    hl,hl                      ; ADD HL,HL         ; ...
+;       sla  hl,3
+;       a    de,hl                      ; ADD HL,DE         ; And add base VDP address
+;       .ex_de_hl                       ; EX DE,HL          ; Move HL into DE, which becomes source address
+;       li   hl,buffer                  ; LD HL,$71A3       ; Buffer
+;       li   bc,>0008                   ; LD BC,$0008       ; Read 8 bytes
+;       .call @read_vram                ; CALL $1FE2        ; READ_VRAM
+;       clr  af
+;       movb @>0a(ix),a                 ; LD A,(IX+$0A)     ; Get pattern
+;;       ab   a,a                        ; ADD A,A           ; Multiply by 8
+;;       ab   a,a                        ; ADD A,A           ; ...
+;;       ab   a,a                        ; ADD A,A           ; ...
+;       sla  a,3
+;       movb a,@e                       ; LD E,A            ; ...
+;       movb @bytes+>08,d               ; LD D,$08          ; DE = $800 + pattern * 8
+;       li   hl,buffer                  ; LD HL,$71A3       ; Source
+;       li   bc,>0008                   ; LD BC,$0008       ; Write 8 bytes
+;       bl   @write_vram               ; CALL $1FDF        ; WRITE_VRAM
+;_ae11:                                 ; >ae11
+;       movb *ix,a                      ; LD A,(IX+$00)     ; Get sprite type
+;       cb   a,one                      ; CP $01            ; If 1, i.e. ship exhaust
+;       jeq  _ae2b                      ; JR Z,$AE2B        ; Then skip ahead
+;       movb @>01(ix),d                 ; LD D,(IX+$01)     ; Polar y
+;       movb @>02(ix),@e                ; LD E,(IX+$02)     ; Polar x
+;       .call @polar_to_screen          ; CALL $B1C6        ; Polar to screen
+;       movb d,@>08(ix)                 ; LD (IX+$08),D     ; Set y
+;       movb @e,@>09(ix)                ; LD (IX+$09),E     ; Set x
+;;       joc  handle_off_screen_sprite   ; JR C,$AE54        ; If carry, sprite is outside visible screen, skip ahead
+;       abs  @carry
+;       jeq  _ae4e
+;       bl   @handle_off_screen_sprite
+;       jmp  _ae4e                      ; JR $AE4E          ; Return
+;_ae2b:                                 ; >ae2b
+;       li   hl,exhaust_position_table  ; LD HL,$AFDD       ; If sprite type is ship exhaust, set HL to table address
+;       movb @>04(ix),a                 ; LD A,(IX+$04)     ; Pattern index
+;       andi a,>0300                    ; AND $03           ; Mod 4
+;       jne  _ae3f                      ; JR NZ,$AE3F       ; If not zero, skip ahead
+;       movb @>05(ix),a                 ; LD A,(IX+$05)     ; Get polar x (saved by #R$ADC7?)
+;       srl  a,1                        ; RRA               ; / 2
+;       andi a,>1e00                    ; AND $1E           ; 0, 2, 4 ... $1E
+;       li   hl,exhaust_position_table+>0002 ; LD HL,$AFDF       ; #R$AFDD+2
+;       .rst >08                        ; RST $08           ; Add A to HL
+;_ae3f:                                 ; >ae3f
+;       movb @sprite_data+>0008,a       ; LD A,($700A)      ; Ship screen y
+;       ab   *hl,a                      ; ADD A,(HL)        ; Add table value
+;       movb a,@>08(ix)                 ; LD (IX+$08),A     ; Set y
+;       inc  hl                         ; INC HL            ; Next table address
+;       movb @sprite_data+>0009,a       ; LD A,($700B)      ; Ship screen x
+;       ab   *hl,a                      ; ADD A,(HL)        ; Add table value
+;       movb a,@>09(ix)                 ; LD (IX+$09),A     ; Set x
+;* This entry point is used by the routines at #R$AE54 and #R$AE75.
+;_ae4e:                                 ; >ae4e
+;       .pop iy                         ; POP IY            ;
+;       .pop bc                         ; POP BC            ;
+;       .pop de                         ; POP DE            ;
+;       .pop hl                         ; POP HL            ;
+;       .ret                            ; RET               ;
 
 * Handle sprite outside visible screen
 *
@@ -5045,38 +5143,42 @@ _ae4e:                                 ; >ae4e
 handle_off_screen_sprite:              ; >ae54
        movb *ix,a                      ; LD A,(IX+$00)     ; Get sprite type
        cb   a,@bytes+>0c               ; CP $0C            ; If < $0C
-       jl   _ae86                      ; JR C,$AE86        ; Then set off-screen values and return
+       jl   handle_off_screen_sprite_3 ; JR C,$AE86        ; Then set off-screen values and return
        cb   a,@bytes+>0e               ; CP $0E            ; If >= $0C and < $0E
-       jl   _ae67                      ; JR C,$AE67        ; Then jump ahead
+       jl   handle_off_screen_sprite_1 ; JR C,$AE67        ; Then jump ahead
        cb   a,@bytes+>12               ; CP $12            ; If >= $0E and < $12
-       jl   _ae4e                      ; JR C,$AE4E        ; Then just return
+;       jl   _ae4e                      ; JR C,$AE4E        ; Then just return
+       jl   handle_off_screen_sprite_4
        cb   a,@bytes+>18               ; CP $18            ; If >= $18
-       jhe  _ae4e                      ; JR NC,$AE4E       ; Then just return
-_ae67:                                 ; >ae67
+;       jhe  _ae4e                      ; JR NC,$AE4E       ; Then just return
+       jhe  handle_off_screen_sprite_4
+handle_off_screen_sprite_1:            ; >ae67
        cb   a,@bytes+>12               ; CP $12            ; If >= $12 and < $12 (not possible)
-       jl   _ae75                      ; JR C,$AE75        ; Then decrement total enemies
+       jl   handle_off_screen_sprite_2 ; JR C,$AE75        ; Then decrement total enemies
        cb   a,@bytes+>14               ; CP $14            ; If >= $14 and < $18
-       jhe  _ae75                      ; JR NC,$AE75       ; Then decrement total enemies
+       jhe  handle_off_screen_sprite_2 ; JR NC,$AE75       ; Then decrement total enemies
 ;       li   hl,active_enemy_shots      ; LD HL,$7252       ; Decrement active enemy shots
 ;       sb   one,*hl                    ; DEC (HL)          ; ...
        sb   one,@active_enemy_shots    ; Decrement active enemy shots
-       jmp  _ae86                      ; JR $AE86          ; Set off-screen values and return
-_ae75:                                 ; >ae75
+       jmp  handle_off_screen_sprite_3                      ; JR $AE86          ; Set off-screen values and return
+handle_off_screen_sprite_2:            ; >ae75
 ;       li   hl,total_enemies           ; LD HL,$7206       ; Decrement total enemies
 ;       sb   one,*hl                    ; DEC (HL)          ; ...
        sb   one,@total_enemies         ; Decrement total enemies
        cb   a,@bytes+>15               ; CP $15            ; If < $15
-       jl   _ae86                      ; JR C,$AE86        ; Then set off-screen values and return
+       jl   handle_off_screen_sprite_3                      ; JR C,$AE86        ; Then set off-screen values and return
        cb   a,@bytes+>18               ; CP $18            ; If >= $18
-       jhe  _ae86                      ; JR NC,$AE86       ; Then set off-screen values and return
+       jhe  handle_off_screen_sprite_3                      ; JR NC,$AE86       ; Then set off-screen values and return
 ;       li   hl,other_flags             ; LD HL,$7256       ; $15 - $17 Reset flag
 ;       szcb @bits+3,*hl                ; RES 3,(HL)        ; ...
        szcb @bits+3,@other_flags
-_ae86:                                 ; >ae86
+handle_off_screen_sprite_3:            ; >ae86
        movb @bytes+>7f,*ix             ; LD (IX+$00),$7F   ; Set as not allocated
        movb @zero,@>09(ix)             ; LD (IX+$09),$00   ; Set x
        movb @bytes+>f8,@>08(ix)        ; LD (IX+$08),$F8   ; Set y
-       jmp  _ae4e                      ; JR $AE4E          ;
+handle_off_screen_sprite_4:
+;       jmp  _ae4e                      ; JR $AE4E          ;
+       rt
 
 ;* Upload sprite patterns
 ;*

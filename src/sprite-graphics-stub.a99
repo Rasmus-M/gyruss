@@ -67,3 +67,34 @@ graphics_pointers_table:               ; >b8fa
        data >0004                                                    ; $CB type $1A
        data >0004                                                    ; $D8 type $1B
        data >0004                                                    ; $E2 type $1C
+
+sprite_pttrn_addrs_table:
+       data sprite_graphics_bin+>0000
+       data sprite_graphics_bin+>0200
+       data sprite_graphics_bin+>0400
+       data sprite_graphics_bin+>0420
+       data sprite_graphics_bin+>0428
+       data sprite_graphics_bin+>0448
+       data sprite_graphics_bin+>0468
+       data sprite_graphics_bin+>0470
+       data sprite_graphics_bin+>0478
+       data sprite_graphics_bin+>0480
+       data sprite_graphics_bin+>0488
+       data sprite_graphics_bin+>0490
+       data sprite_graphics_bin+>0498
+       data sprite_graphics_bin+>04A0
+       data sprite_graphics_bin+>04A8
+       data sprite_graphics_bin+>06A8
+       data sprite_graphics_bin+>08A8
+       data sprite_graphics_bin+>0AA8
+       data sprite_graphics_bin+>0CA8
+       data sprite_graphics_bin+>0CC8
+       data sprite_graphics_bin+>0CE8
+       data sprite_graphics_bin+>0D08
+       data sprite_graphics_bin+>0F08
+       data sprite_graphics_bin+>1108
+       data sprite_graphics_bin+>1308
+       data sprite_graphics_bin+>1408
+       data sprite_graphics_bin+>1608
+       data sprite_graphics_bin+>1728
+       data sprite_graphics_bin+>1748
