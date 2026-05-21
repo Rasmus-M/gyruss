@@ -454,17 +454,15 @@ stage_completed:                       ; >832a
        movb a,@counter_stage_completed ; LD ($7259),A      ; ...
        li   hl,status_flags            ; LD HL,$71EB       ; Clear main loop flag
        szcb @bits+6,*hl                ; RES 6,(HL)        ; ...
-       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
+;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
        movb *hl,r0                     ; BIT 3,(HL)        ; If bit 3 is set
        andi r0,>0800                   ;
-       jeq  !                          ; JP NZ,$8429       ; Then it was a chance stage
+       jeq  stage_completed_1          ; JP NZ,$8429       ; Then it was a chance stage
        b    @display_bonus             ;
-!
 * This entry point is used by the routines at #R$8450 and #R$846B.
-_833c:                                 ; >833c
-       equ  $
+stage_completed_1:                     ; >833c
        movb @bytes+>5a,b               ; LD B,$5A          ; 90
-_833e:                                 ; >833e
+stage_completed_2:                     ; >833e
        .push bc                        ; PUSH BC           ;
        .halt                           ; HALT              ; Wait interrupt
        .call @display_stars            ; CALL $AFFF        ; Display stars
@@ -474,20 +472,20 @@ _833e:                                 ; >833e
        .call @next_frame_upl_sprites   ; CALL $84B1        ; Upload sprites
        .pop bc                         ; POP BC            ;
        sb   one,b                      ; DJNZ $833E        ; Loop for 90 frames
-       jne  _833e                      ;
+       jne  stage_completed_2          ;
        .call @stop_tune                ; CALL $9B87        ; Stop tune
        .call @clear_rows_9_and_14      ; CALL $84ED        ; Clear rows 9 and 14
        movb @stage,a                   ; LD A,($7200)      ; Stage
        andi a,>0300                    ; AND $03           ; Stage mod 4
        cb   a,@bytes+>02               ; CP $02            ; If not planet reached (2)
-       jne  _8368                      ; JR NZ,$8368       ; Then skip ahead
+       jne  stage_completed_3          ; JR NZ,$8368       ; Then skip ahead
        movb one,a                      ; LD A,$01          ; Play tune 1
        .call @call_play_tune           ; CALL $9E91        ; ...
-       jmp  _836d                      ; JR $836D          ;
-_8368:                                 ; >8368
+       jmp  stage_completed_4          ; JR $836D          ;
+stage_completed_3:                     ; >8368
        movb @bytes+>05,a               ; LD A,$05          ; If not planet reached then play sound
        .call @call_play_sound          ; CALL $9EA3        ; ...
-_836d:                                 ; >836d
+stage_completed_4:                     ; >836d
        li   hl,status_flags            ; LD HL,$71EB       ;
        socb @bits+0,*hl                ; SET 0,(HL)        ;
        socb @bits+4,*hl                ; SET 4,(HL)        ;
@@ -495,47 +493,48 @@ _836d:                                 ; >836d
        movb a,b                        ; LD B,A            ; B = stage
        andi a,>0300                    ; AND $03           ; Stage mod 4
        cb   a,@bytes+>02               ; CP $02            ; If not planet reached (2)
-       jne  _838a                      ; JR NZ,$838A       ; Then skip displaying planet
+       jne  stage_completed_5          ; JR NZ,$838A       ; Then skip displaying planet
        movb b,a                        ; LD A,B            ; Stage
-       srl  a,1                        ; SRL A             ; Divide by 4
-       srl  a,1                        ; SRL A             ; ...
+;       srl  a,1                        ; SRL A             ; Divide by 4
+;       srl  a,1                        ; SRL A             ; ...
+       srl  a,2
        ab   one,a                      ; INC A             ; + 1
        .call @display_planet           ; CALL $9175        ; Display planet A
        .call @upload_sprite_data       ; CALL $ACF9        ; Upload sprite data
 * Warp
-_838a:                                 ; >838a
+stage_completed_5:                     ; >838a
        .halt                           ; HALT              ; Wait interrupt
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @process_sprites          ; CALL $85E6        ; Process sprites
        li   hl,counter_stage_completed ; LD HL,$7259       ; Decrement counter that start at 8
        sb   one,*hl                    ; DEC (HL)          ; ...
-       jne  _83cb                      ; JR NZ,$83CB       ; If not zero yet then skip loop body
+       jne  stage_completed_8          ; JR NZ,$83CB       ; If not zero yet then skip loop body
        movb @bytes+>08,*hl             ; LD (HL),$08       ; Reset counter
        li   ix,sprite_data             ; LD IX,$7002       ; Pointer sprite 0
        ab   one,@>01(ix)               ; INC (IX+$01)      ; Increment polar y
        ab   one,@>0d(ix)               ; INC (IX+$0D)      ; Increment polar y for sprite 1
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
        cb   a,@bytes+>12               ; CP $12            ; Is polar y 18?
-       jne  _83b2                      ; JR NZ,$83B2       ; No, skip ahead
+       jne  stage_completed_6          ; JR NZ,$83B2       ; No, skip ahead
        .push af                        ; PUSH AF           ;
        .call @clear_row_7              ; CALL $920D        ; Clear row 7 (planet name)
        .pop af                         ; POP AF            ;
-_83b2:                                 ; >83b2
+stage_completed_6:                     ; >83b2
        cb   a,@bytes+>2b               ; CP $2B            ; Is polar y 43?
        jeq  next_stage                 ; JR Z,$83D0        ; Yes, break out of loop
        cb   a,@bytes+>15               ; CP $15            ; Is polar y 21?
-       jne  _83c2                      ; JR NZ,$83C2       ; No, skip ahead
+       jne  stage_completed_7          ; JR NZ,$83C2       ; No, skip ahead
        movb @bytes+>0f,@>0b(ix)        ; LD (IX+$0B),$0F   ; Set color of sprite 0
        movb @bytes+>09,@>17(ix)        ; LD (IX+$17),$09   ; Set color of sprite 1
-_83c2:                                 ; >83c2
+stage_completed_7:                     ; >83c2
        .rst >30                        ; RST $30           ; Load sprite pattern sprite 0
-       li   ix,sprite_data_1                   ; LD IX,$700E       ; Sprite 1
+       li   ix,sprite_data_1           ; LD IX,$700E       ; Sprite 1
        .rst >30                        ; RST $30           ; Load sprite pattern sprite 1
        .call @display_ship_background_patterns ; CALL $A808        ; Display ship background patterns
-_83cb:                                 ; >83cb
+stage_completed_8:                     ; >83cb
        .call @next_frame_upl_sprites   ; CALL $84B1        ; Upload sprites
-       jmp  _838a                      ; JR $838A          ; Loop
+       jmp  stage_completed_5          ; JR $838A          ; Loop
 
 * Next stage
 *
@@ -550,21 +549,21 @@ next_stage:                            ; >83d0
        movb @stage,a                   ; LD A,($7200)      ; Stage
        ab   one,a                      ; INC A             ; Next stage
        cb   a,@bytes+>18               ; CP $18            ; Did we reach 24?
-       jl   _83ec                      ; JR C,$83EC        ; No, skip ahead
+       jl   next_stage_1               ; JR C,$83EC        ; No, skip ahead
        li   hl,completed_stages        ; LD HL,$7205       ; Get the total stages completed
        ab   *hl,a                      ; ADD A,(HL)        ; And add 24
        movb a,*hl                      ; LD (HL),A         ; Save again
        sb   a,a                        ; XOR A             ; And set stage to zero
-_83ec:                                 ; >83ec
+next_stage_1:                          ; >83ec
        movb a,@stage                   ; LD ($7200),A      ; Save stage
        li   hl,status_flags            ; LD HL,$71EB       ; Flags
        szcb @bits+3,*hl                ; RES 3,(HL)        ; Reset bit 3
        movb @stage,a                   ; LD A,($7200)      ; Stage
        andi a,>0300                    ; AND $03           ; Mod 4
        cb   a,@bytes+>03               ; CP $03            ; Is it a chance stage?
-       jne  _83ff                      ; JR NZ,$83FF       ; No, skip ahead
+       jne  next_stage_2               ; JR NZ,$83FF       ; No, skip ahead
        socb @bits+3,*hl                ; SET 3,(HL)        ; Yes, set flag
-_83ff:                                 ; >83ff
+next_stage_2:                          ; >83ff
        sb   a,a                        ; XOR A             ; Reset death count
        movb a,@stage_death_count       ; LD ($7204),A      ; ...
        .call @display_planet           ; CALL $9175        ; Undraw planet
@@ -602,11 +601,11 @@ display_bonus:                         ; >8429
        .pop af                         ; POP AF            ; Restore ships
        .push af                        ; PUSH AF           ; Save again
        movb @bytes+>30,b               ; LD B,$30          ; 48
-_8449:                                 ; >8449
+display_bonus_1:                       ; >8449
        sb   @bytes+>0a,a               ; SUB $0A           ; Ships - 10
        jlt  display_hits               ; JR C,$8450        ; Jump if ships < 10, A is now -10 to -1
        ab   one,b                      ; INC B             ; +1 for every 10 ships
-       jmp  _8449                      ; JR $8449          ; Loop
+       jmp  display_bonus_1            ; JR $8449          ; Loop
 
 * Display hits
 *
@@ -626,9 +625,9 @@ display_hits:                          ; >8450
        movb b,a                        ; LD A,B            ; If it zero?
 ;       socb a,a                        ; OR A              ; ...
        jne  !                          ; JP Z,$833C        ; Then jump back to complete stage
-       b    @_833c                     ;
+       b    @stage_completed_1         ;
 !
-       jmp  _8486                      ; JR $8486          ; Else add B x 100 bonus points
+       jmp  display_bonus_score        ; JR $8486          ; Else add B x 100 bonus points
 
 * Perfect bonus
 *
@@ -646,16 +645,16 @@ perfect_bonus:                         ; >846b
        .rst >38                        ; RST $38           ; WRITE_VRAM
        movb @bytes+>64,b               ; LD B,$64          ; 100 times
 * This entry point is used by the routine at #R$8450.
-_8486:                                 ; >8486
+display_bonus_score:                   ; >8486
        li   hl,>0100                   ; LD HL,$0100       ; 100 points
-_8489:                                 ; >8489
+display_bonus_score_1:                 ; >8489
        .push hl                        ; PUSH HL           ;
        .push bc                        ; PUSH BC           ;
        .call @add_score                ; CALL $A6EC        ; Add 100 points to score
        movb @current_player,a          ; LD A,($71F1)      ; Current player
        .call @display_score            ; CALL $A699        ; Display score
        movb @bytes+>07,b               ; LD B,$07          ; 7 frames
-_8496:                                 ; >8496
+display_bonus_score_2:                 ; >8496
        .halt                           ; HALT              ; Wait for interrupt
        .push bc                        ; PUSH BC           ;
        .call @display_stars            ; CALL $AFFF        ; Display stars
@@ -665,12 +664,12 @@ _8496:                                 ; >8496
        .call @next_frame_upl_sprites   ; CALL $84B1        ; Upload sprites
        .pop bc                         ; POP BC            ;
        sb   one,b                      ; DJNZ $8496        ; Loop 7 times
-       jne  _8496                      ;
+       jne  display_bonus_score_2                      ;
        .pop bc                         ; POP BC            ;
        .pop hl                         ; POP HL            ;
        sb   one,b                      ; DJNZ $8489        ; Loop number of ships times
-       jne  _8489                      ;
-       b    @_833c                     ; JP $833C          ; Jump back to complete stage
+       jne  display_bonus_score_1                      ;
+       b    @stage_completed_1         ; JP $833C          ; Jump back to complete stage
 
 * Update frames and upload sprites
 *
@@ -746,47 +745,47 @@ clear_rows_9_and_14:                   ; >84ed
        sb   a,a                        ; XOR A             ; Clear
        b    @fill_vram                 ; JP $1F82          ; FILL_VRAM
 
-* Interrupt routine
-*
-* Calls sound player and handles screen saver Used by the routine at #R$8021.
-interrupt_routine:                     ; >8501
-       .push ix                        ; PUSH IX           ;
-       .push iy                        ; PUSH IY           ;
-       .push hl                        ; PUSH HL           ;
-       .push de                        ; PUSH DE           ;
-       .push bc                        ; PUSH BC           ;
-       .push af                        ; PUSH AF           ;
-       mov  @screensaver_countdown,hl  ; LD HL,($7257)     ; Counter
-       movb h,a                        ; LD A,H            ; Check if zero
-       socb @l,a                       ; OR L              ; ...
-       jeq  _8522                      ; JR Z,$8522        ; If counter is 0 then skip ahead
-       dec  hl                         ; DEC HL            ; Otherwise decrement
-       mov  hl,@screensaver_countdown  ; LD ($7257),HL     ; and save.
-       movb h,a                        ; LD A,H            ; Check again if zero
-       socb @l,a                       ; OR L              ; ...
-       jne  _8522                      ; JR NZ,$8522       ; If not then skip ahead, otherwise blank screen
-       li   bc,>0180                   ; LD BC,$0180       ; Display off, interrupt off
-       .rst >18                        ; RST $18           ; WRITE_REGISTER
-       li   bc,>0701                   ; LD BC,$0701       ; Black border
-       .rst >18                        ; RST $18           ; WRITE_REGISTER
-_8520:                                 ; >8520
-       jmp  _8520                      ; JR $8520          ; Loop
-_8522:                                 ; >8522
-       .call @sound_player             ; CALL $9B99        ; Sound player
-       movb @status_flags,a            ; LD A,($71EB)      ;
-       czc  @bit6,a                    ; BIT 6,A           ;
-       jne  !                          ; CALL Z,$1FDC      ; READ_REGISTER
-       .call @read_register            ;
-!
-       li   hl,interrupt_flag          ; LD HL,$725A       ;
-       socb @bits+0,*hl                ; SET 0,(HL)        ;
-       .pop af                         ; POP AF            ;
-       .pop bc                         ; POP BC            ;
-       .pop de                         ; POP DE            ;
-       .pop hl                         ; POP HL            ;
-       .pop iy                         ; POP IY            ;
-       .pop ix                         ; POP IX            ;
-       .ret                            ; RETN              ;
+;* Interrupt routine
+;*
+;* Calls sound player and handles screen saver Used by the routine at #R$8021.
+;interrupt_routine:                     ; >8501
+;       .push ix                        ; PUSH IX           ;
+;       .push iy                        ; PUSH IY           ;
+;       .push hl                        ; PUSH HL           ;
+;       .push de                        ; PUSH DE           ;
+;       .push bc                        ; PUSH BC           ;
+;       .push af                        ; PUSH AF           ;
+;       mov  @screensaver_countdown,hl  ; LD HL,($7257)     ; Counter
+;       movb h,a                        ; LD A,H            ; Check if zero
+;       socb @l,a                       ; OR L              ; ...
+;       jeq  _8522                      ; JR Z,$8522        ; If counter is 0 then skip ahead
+;       dec  hl                         ; DEC HL            ; Otherwise decrement
+;       mov  hl,@screensaver_countdown  ; LD ($7257),HL     ; and save.
+;       movb h,a                        ; LD A,H            ; Check again if zero
+;       socb @l,a                       ; OR L              ; ...
+;       jne  _8522                      ; JR NZ,$8522       ; If not then skip ahead, otherwise blank screen
+;       li   bc,>0180                   ; LD BC,$0180       ; Display off, interrupt off
+;       .rst >18                        ; RST $18           ; WRITE_REGISTER
+;       li   bc,>0701                   ; LD BC,$0701       ; Black border
+;       .rst >18                        ; RST $18           ; WRITE_REGISTER
+;_8520:                                 ; >8520
+;       jmp  _8520                      ; JR $8520          ; Loop
+;_8522:                                 ; >8522
+;       .call @sound_player             ; CALL $9B99        ; Sound player
+;       movb @status_flags,a            ; LD A,($71EB)      ;
+;       czc  @bit6,a                    ; BIT 6,A           ;
+;       jne  !                          ; CALL Z,$1FDC      ; READ_REGISTER
+;       .call @read_register            ;
+;!
+;       li   hl,interrupt_flag          ; LD HL,$725A       ;
+;       socb @bits+0,*hl                ; SET 0,(HL)        ;
+;       .pop af                         ; POP AF            ;
+;       .pop bc                         ; POP BC            ;
+;       .pop de                         ; POP DE            ;
+;       .pop hl                         ; POP HL            ;
+;       .pop iy                         ; POP IY            ;
+;       .pop ix                         ; POP IX            ;
+;       .ret                            ; RETN              ;
 
 * STAGE message
 stage_msg:                             ; >853c
@@ -1423,10 +1422,9 @@ _88d4:                                 ; >88d4
        ab   one,@>05(ix)               ; INC (IX+$05)      ; Mark for pattern reload
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
        cb   a,@bytes+>08               ; CP $08            ; Return if not 8
-       jeq  !                          ; RET NZ            ; ...
-       .ret                            ;
-!
+       jne  !                          ; RET NZ            ; ...
        movb @bytes+>41,@>03(ix)        ; LD (IX+$03),$41   ; Set counter
+!
        .ret                            ; RET               ; Return to #R$8A41
 
 * Enemy movement: Counter is $41
@@ -1777,10 +1775,12 @@ maybe_create_enemy_shot:               ; >8a76
        .rst >28                        ; RST $28           ; Allocate sprite
        .pop iy                         ; POP IY            ; Now IY = enemy sprite and IX = shot
        .push iy                        ; PUSH IY           ; Save enemy sprite
-       movb @>01(iy),a                 ; LD A,(IY+$01)     ; Set polar y of shot to polar x of enemy
-       movb a,@>01(ix)                 ; LD (IX+$01),A     ; ...
-       movb @>02(iy),a                 ; LD A,(IY+$02)     ; Set polar x of shot to polar x of enemy
-       movb a,@>02(ix)                 ; LD (IX+$02),A     ; ...
+;       movb @>01(iy),a                 ; LD A,(IY+$01)     ; Set polar y of shot to polar x of enemy
+;       movb a,@>01(ix)                 ; LD (IX+$01),A     ; ...
+       movb @>01(iy),@>01(ix)
+;       movb @>02(iy),a                 ; LD A,(IY+$02)     ; Set polar x of shot to polar x of enemy
+;       movb a,@>02(ix)                 ; LD (IX+$02),A     ; ...
+       movb @>02(iy),@>02(ix)
        movb @bytes+>12,*ix             ; LD (IX+$00),$12   ; Set sprite type
        movb @bytes+>0a,@>0b(ix)        ; LD (IX+$0B),$0A   ; Set color
        .pop ix                         ; POP IX            ; Restore enemy sprite
@@ -5431,7 +5431,7 @@ display_stars:                         ; >afff
        movb @status_flags,a            ; LD A,($71EB)      ; Test warp flag
        czc  @bit0,a                    ; BIT 0,A           ; ...
        jeq  _b00f                      ; JR Z,$B00F        ; If bit 0 is set then reset counter to 3
-       movb @bytes+>03,*hl             ; LD (HL),$03       ; ...
+       movb @bytes+>02,*hl             ; LD (HL),$03       ; ...
 _b00f:                                 ; >b00f
        movb @b255,@c                   ; LD C,$00          ; Set mask to undraw (swapped since we use szcb)
        .call @display_star_frame       ; CALL $B023        ;
