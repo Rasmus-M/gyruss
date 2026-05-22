@@ -4,7 +4,7 @@ entry:                                 ; >8024
        ; OUT ($C0),A                   ; OUT ($C0),A       ; Controller enable
        li   hl,center_of_projection    ; LD HL,$7000       ; Clear RAM
        li   de,center_of_projection+>0001 ; LD DE,$7001       ; #R$7000+1
-       li   bc,random_number+1-center_of_projection ; LD BC,$03B9       ; ...
+       li   bc,star_frame-center_of_projection ; LD BC,$03B9       ; ...
        clr  *hl                        ; LD (HL),L         ; ...
        .ldir                           ; LDIR              ; ...
        li   hl,>8060                   ; LD HL,$8060       ; Set center of projection
@@ -4402,10 +4402,12 @@ allocate_map_entry_3:                  ; >aac6
        li   hl,center_enemy_map        ; LD HL,$7207       ; Start at beginning of #R$7207
        movb @b255,a                    ; LD A,$FF          ; Byte to search for
 allocate_map_entry_4:                  ; >aacb
-       cb   a,*hl                      ; CP (HL)           ; Check byte
-       jeq  allocate_map_entry_5       ; JR Z,$AAD1        ; Break out if found HL now points to first $FF in buffer
-       inc  hl                         ; INC HL            ; Next address
+       cb   a,*hl+                     ; CP (HL)           ; Check byte
+       jeq  allocate_map_entry_4a      ; JR Z,$AAD1        ; Break out if found HL now points to first $FF in buffer
+;      inc  hl                         ; INC HL            ; Next address
        jmp  allocate_map_entry_4       ; JR $AACB          ; Loop forever
+allocate_map_entry_4a:
+       dec  hl
 allocate_map_entry_5:                  ; >aad1
        .pop af                         ; POP AF            ; Restore value to write
        movb a,*hl                      ; LD (HL),A         ; Set byte to A

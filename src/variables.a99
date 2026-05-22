@@ -647,6 +647,7 @@ star_frame:                            ; >731a
        byte >00
 
 * Random number
+       even
 random_number:                         ; >731b
        byte >00,>00
 

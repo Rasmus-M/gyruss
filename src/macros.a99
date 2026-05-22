@@ -84,10 +84,10 @@
        bl   @vdp_write_byte            ; JP $9AC3          ; Write VDP byte (DE = address, A = value)
        .endif
        .ifeq #1,>18
-       bl   @write_register           ; JP $1FD9          ; WRITE_REGISTER (B = reg, C = value)
+       bl   @write_register            ; JP $1FD9          ; WRITE_REGISTER (B = reg, C = value)
        .endif
        .ifeq #1,>20
-       bl   @rnd                       ; JP $BFAE          ; Random number generator
+       bl   @ti_rnd                    ; JP $BFAE          ; Random number generator
        .endif
        .ifeq #1,>28
        bl   @allocate_sprite           ; JP $AD49          ; Allocate_sprite

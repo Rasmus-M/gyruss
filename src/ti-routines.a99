@@ -543,11 +543,11 @@ ti_quit:
 *
 ti_rnd:
        li   r1,28643                 ; A prime number to multiply by
-       mpy  @carry,r1             ; Multiply by last random number
+       mpy  @random_number,r1        ; Multiply by last random number
        ai   r2,31873                 ; Add a prime number
        src  r2,7                     ; Mix up the number to break odd/even pattern
-       mov  r2,@carry             ; Save this number for next time
-       mov  r2,r0
+       mov  r2,@random_number        ; Save this number for next time
+       movb r2,a
        rt
 *// ti_rnd
 
