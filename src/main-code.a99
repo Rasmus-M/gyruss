@@ -1198,7 +1198,7 @@ handle_sprite_types_0e_11:             ; >8790
 !
        movb @>07(ix),r0                ; BIT 6,(IX+$07)    ; Check bit 6 of flags
        andi r0,>4000                   ;
-       jne  create_map_entry_for_sprite ; JR NZ,$87D5       ; If set, create map entry for enemy sprite
+       jne  move_to_center           ; JR NZ,$87D5       ; If set, create map entry for enemy sprite
        movb @>07(ix),r0                ; BIT 2,(IX+$07)    ; Check bit 2 of flags
        andi r0,>0400                   ;
        jeq  !                          ; JP NZ,$8825       ; If set, move towards viewer
@@ -1227,43 +1227,46 @@ handle_sprite_types_0e_11:             ; >8790
 * #R$8790.
 *
 * I: IX Sprite data of enemy
-create_map_entry_for_sprite:           ; >87d5
+move_to_center:           ; >87d5
        movb @sprite_countdown,a        ; LD A,($71EE)      ; Return if countdown
 ;       socb a,a                        ; OR A              ; is not zero
-       jeq  !                          ; RET NZ            ; ...
-       .ret                            ;
-!
+       jne  move_to_center_5           ; RET NZ            ; ...
        ab   one,@>05(ix)               ; INC (IX+$05)      ; Mark for pattern reload
+;      Check if already in map
        movb @>0a(ix),a                 ; LD A,(IX+$0A)     ; Get pattern
        socb @bytes+>80,a               ; OR $80            ; Set bit 7
        movb @bytes+>24,b               ; LD B,$24          ; Size of map
        li   hl,center_enemy_map        ; LD HL,$7207       ; Address of map
-_87e7:                                 ; >87e7
-       cb   a,*hl                      ; CP (HL)           ; Check entry
-       jeq  _87f5                      ; JR Z,$87F5        ; Break out if found
-       inc  hl                         ; INC HL            ; Next map address
+move_to_center_1:                      ; >87e7
+       cb   a,*hl+                     ; CP (HL)           ; Check entry
+       jeq  move_to_center_2           ; JR Z,$87F5        ; Break out if found
+;       inc  hl                         ; INC HL            ; Next map address
        sb   one,b                      ; DJNZ $87E7        ; Loop up to 36 times
-       jne  _87e7                      ;
-       movb @>0a(ix),a                 ; LD A,(IX+$0A)     ; Get pattern
-       socb @bytes+>80,a               ; OR $80            ; Set bit 7
+       jne  move_to_center_1           ;
+;      Not found
+;       movb @>0a(ix),a                 ; LD A,(IX+$0A)     ; Get pattern
+;       socb @bytes+>80,a               ; OR $80            ; Set bit 7
        b    @allocate_map_entry        ; JP $AAA6          ; Add pattern to map. Return to #R$8A41
-_87f5:                                 ; >87f5
-       .call @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
+;      Found
+move_to_center_2:                      ; >87f5
+       dec  hl
+       bl   @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
        movb @e,a                       ; LD A,E            ; Get x from map
        cb   a,@>02(ix)                 ; CP (IX+$02)       ; Compare with polar x
-       jeq  _8801                      ; JR Z,$8801        ; If same, skip ahead
+       jeq  move_to_center_3           ; JR Z,$8801        ; If same, skip ahead
        b    @move_towards_x            ; JP $8AC0          ; Else jump out to #R$8AC0
-_8801:                                 ; >8801
+move_to_center_3:                      ; >8801
        movb @bytes+>0e,*ix             ; LD (IX+$00),$0E   ; Change sprite type to enemy
 * Move towards y
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
        cb   a,d                        ; CP D              ; Compare with polar y from map
-       jeq  return_enemy_to_map        ; JR Z,$8815        ; If same, jump ahead
-       jlt  _8811                      ; JR C,$8811        ; If less than, skip to increment polar y
+       jeq  return_enemy_to_map        ; JR Z,$8815        ; If same, return enemy to map
+       jlt  move_to_center_4           ; JR C,$8811        ; If less than, skip to increment polar y
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
-       .ret                            ; RET               ; Return to #R$8A41
-_8811:                                 ; >8811
+       jmp  move_to_center_5           ; RET               ; Return to #R$8A41
+move_to_center_4:                      ; >8811
        ab   one,@>01(ix)               ; INC (IX+$01)      ; Increment polar y
+move_to_center_5:
        .ret                            ; RET               ; Return to #R$8A41
 
 * Enemy movement: Return enemy to map
@@ -1273,8 +1276,9 @@ _8811:                                 ; >8811
 * I:IX Sprite data of enemy
 * I:HL Map address
 return_enemy_to_map:                   ; >8815
-       movb @>0b(ix),a                 ; LD A,(IX+$0B)     ; Get color (why not pattern?)
-       movb a,*hl                      ; LD (HL),A         ; Set in map
+;       movb @>0b(ix),a                 ; LD A,(IX+$0B)     ; Get color (why not pattern?)
+;       movb a,*hl                      ; LD (HL),A         ; Set in map
+       movb @>0b(ix),*hl
 ;       li   hl,active_enemies          ; LD HL,$722C       ; Decrease active enemies
 ;       sb   one,*hl                    ; DEC (HL)          ; ...
        sb   one,@active_enemies        ; Decrease active enemies
@@ -3358,7 +3362,7 @@ _98d1:                                 ; >98d1
        movb *hl,r0                     ; BIT 7,(HL)        ; If not allocated
        andi r0,>8000                   ;
        jne  _98eb                      ; JR NZ,$98EB       ; Then move on to next
-       .call @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
+       bl   @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
        movb d,a                        ; LD A,D            ; Polar y
        sb   @>01(ix),a                 ; SUB (IX+$01)      ; Subtract polar y of shot
 ;       jnc  _98e0                      ; JR NC,$98E0       ; Take absolute value
@@ -4358,10 +4362,10 @@ init_center_enemies:                   ; >aa7d
        sb   a,a                        ; XOR A             ; A = 0
        movb a,@center_map_entries      ; LD ($722B),A      ; Clear number of map entries
        movb a,@center_enemy_processed  ; LD ($72CD),A      ; Clear center enemy processed
-       movb a,@y_counter               ; LD ($72D3),A      ; Clear y counter
-       movb a,@x_counter               ; LD ($72D4),A      ; Clear x counter
+       movb a,@center_y_offset         ; LD ($72D3),A      ; Clear y offset
+       movb a,@center_x_offset         ; LD ($72D4),A      ; Clear x offset
        ab   one,a                      ; INC A             ; A = 1
-       movb a,@y_counter_direction     ; LD ($72D2),A      ; Set y counter direction
+       movb a,@y_offset_direction      ; LD ($72D2),A      ; Set y offset direction
        movb @bytes+>e0,a               ; LD A,$E0          ; Set first name used for center enemies in buffer 1
        movb a,@center_enemies_name_1   ; LD ($72CE),A      ; ...
        ab   @bytes+>10,a               ; ADD A,$10         ; First name used for center enemies in buffer 2
@@ -4469,7 +4473,7 @@ create_sprite_from_map_entry_3:        ; >ab17
        movb *hl,a                      ; LD A,(HL)         ; Get value from map
        .push af                        ; PUSH AF           ; Save it
        .call @deallocate_map_entry     ; CALL $AAE3        ; Deallocate map entry
-       .call @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
+       bl   @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
        .rst >28                        ; RST $28           ; Allocate sprite
        movb @e,@>02(ix)                ; LD (IX+$02),E     ; Set polar x
        movb d,@>01(ix)                 ; LD (IX+$01),D     ; Set polar x
@@ -4492,24 +4496,25 @@ create_sprite_from_map_entry_3:        ; >ab17
 * O:D Polar y
 * O:E Polar x
 polar_coord_from_map:                  ; >ab38
-       .push hl                        ; PUSH HL           ; Save map address
+       mov  hl,r1
+;       .push hl                        ; PUSH HL           ; Save map address
 ;       li   de,center_enemy_map        ; LD DE,$7207       ; Base address of map
 ;       socb a,a                        ; OR A              ; Clear carry
 ;       s    de,hl                      ; SBC HL,DE         ; Map address - map base (offset 0 - 35)
-       ai   hl,-center_enemy_map       ; SBC HL,DE         ; Map address - map base (offset 0 - 35)
-       a    hl,hl                      ; ADD HL,HL         ; x2 = offset
+       ai   r1,-center_enemy_map       ; SBC HL,DE         ; Map address - map base (offset 0 - 35)
+       a    r1,r1                      ; ADD HL,HL         ; x2 = offset
 ;       li   de,start_coordinates_table ; LD DE,$AC87       ; Table address
-       ai   hl,start_coordinates_table  ; ADD HL,DE         ; Add offset
-       movb @x_counter,a               ; LD A,($72D4)      ; Get x counter
-       ab   *hl+,a                     ; ADD A,(HL)        ; Add table value
+       ai   r1,start_coordinates_table  ; ADD HL,DE         ; Add offset
+       movb @center_x_offset,a         ; LD A,($72D4)      ; Get x offset
+       ab   *r1+,a                     ; ADD A,(HL)        ; Add table value
        andi a,>3f00                    ; AND $3F           ; Mod 64
        movb a,@e                       ; LD E,A            ; Store in E
 ;      inc  hl                         ; INC HL            ; Next table address
-       movb @y_counter,a               ; LD A,($72D3)      ; Get y counter
-       ab   *hl,a                      ; ADD A,(HL)        ; Add table value
+       movb @center_y_offset,a         ; LD A,($72D3)      ; Get y offset
+       ab   *r1,a                      ; ADD A,(HL)        ; Add table value
        movb a,d                        ; LD D,A            ; Store in D
-       .pop hl                         ; POP HL            ; Restore map address
-       .ret                            ; RET               ;
+;       .pop hl                         ; POP HL            ; Restore map address
+       rt                              ; RET               ;
 
 * Deallocate sprite from map
 *
@@ -4554,10 +4559,10 @@ display_center_enemies:                ; >ab72
        b    @_aba0                     ;
 !
        movb @bytes+>0f,*hl             ; LD (HL),$0F       ; Reset to 15
-       movb @y_counter,a               ; LD A,($72D3)      ; Y counter
-       li   hl,y_counter_direction     ; LD HL,$72D2       ; Add direction 1 or -1
+       movb @center_y_offset,a         ; LD A,($72D3)      ; Y offset
+       li   hl,y_offset_direction      ; LD HL,$72D2       ; Add direction 1 or -1
        ab   *hl,a                      ; ADD A,(HL)        ; ...
-       movb a,@y_counter               ; LD ($72D3),A      ; Store y counter
+       movb a,@center_y_offset         ; LD ($72D3),A      ; Store y offset
 ;       jgt  _ab8a                      ; JP P,$AB8A        ; If y counter > 0 then skip ahead
 ;       neg a                           ; NEG               ; Else make positive
 ;_ab8a:                                 ; >ab8a
@@ -4567,10 +4572,10 @@ display_center_enemies:                ; >ab72
        movb *hl,a                      ; LD A,(HL)         ; IF 1, get direction
        neg a                           ; NEG               ; Reverse direction
        movb a,*hl                      ; LD (HL),A         ; Store direction
-       movb @x_counter,a               ; LD A,($72D4)      ; x counter
+       movb @center_x_offset,a         ; LD A,($72D4)      ; x offset
        ab   one,a                      ; INC A             ; +1
        andi a,>3f00                    ; AND $3F           ; Mod 64
-       movb a,@x_counter               ; LD ($72D4),A      ; Store x counter
+       movb a,@center_x_offset         ; LD ($72D4),A      ; Store x offset
 _ab9b:                                 ; >ab9b
        li   hl,center_enemies_redraw   ; LD HL,$72CC       ; Set flag
        socb @bits+0,*hl                ; SET 0,(HL)        ; ...
@@ -4606,7 +4611,7 @@ _abc4:                                 ; >abc4
        jeq  !                          ; JP NZ,$ABFA       ; Then update counter and return
        b    @_abfa                     ;
 !
-       .call @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
+       bl   @polar_coord_from_map     ; CALL $AB38        ; Now DE contains polar y,x
        .call @polar_to_screen          ; CALL $B1C6        ; Convert polar to screen
        .push de                        ; PUSH DE           ; Save screen coordinates
        movb *hl,a                      ; LD A,(HL)         ; Get map value

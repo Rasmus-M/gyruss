@@ -584,19 +584,19 @@ center_enemies_pattern:                ; >72d0
        data >0000
 
 * Y counter direction
-y_counter_direction:                   ; >72d2
+y_offset_direction:                   ; >72d2
        byte >00
 
 * Y counter
 *
 * Goes -1, 0, 1, 0, -1, 0, 1, 0, ...
-y_counter:                             ; >72d3
+center_y_offset:                             ; >72d3
        byte >00
 
 * X counter
 *
 * Counter $00 - $3F
-x_counter:                             ; >72d4
+center_x_offset:                             ; >72d4
        byte >00
 
 * Sprite type processed
