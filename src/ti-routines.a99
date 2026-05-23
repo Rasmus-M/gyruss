@@ -614,14 +614,14 @@ ti_rnd:
 
 *********************************************************************
 *
-* Wait for vertical retrace (CRU)
+* Wait for vertical retrace
 *
-ti_vsync:
-       movb @vdpsta,@vdp_status
-ti_vsync_1:
-       clr  r12
-       tb   2                          ; Test CRU bit for VDP interrupt
-       jeq  ti_vsync_1
+ti_wait_vsync:
+       movb @vdpsta,r0
+ti_check_vsync:
+       movb @vdpsta,r0
+       andi r0,>8000
+       jeq  ti_check_vsync
        rt
 *// ti_vsync
 

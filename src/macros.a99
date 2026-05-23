@@ -101,7 +101,7 @@
        .endm
 
        .defm halt
-       bl   @ti_vsync
+       bl   @ti_check_vsync
        .endm
 
        .defm a_to_psg

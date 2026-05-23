@@ -15,7 +15,7 @@ entry:                                 ; >8024
        mov  hl,@screensaver_countdown  ; LD ($7257),HL     ; Set screensaver countdown
        jmp  new_game
 entry_wait_fire:                       ; >8047
-       .halt                           ; HALT              ; Wait for interrupt
+       bl   @ti_wait_vsync             ; HALT              ; Wait for interrupt
        .call @display_stars            ; CALL $AFFF        ; Display stars
        li   hl,>0000                   ; LD HL,$0000       ; Controller 0, segment 0
        bl   @decoder                   ; CALL $1F79        ; DECODER
@@ -102,17 +102,20 @@ main_loop:                             ; >80e8
 ;       jeq  _80eb                      ; JR Z,$80EB        ; Wait until set
 ;       szcb @bits+0,*hl                ; RES 0,(HL)        ; Clear flag
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER (read VDP status)
-       .call @sound_player
+        bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @process_sprites          ; CALL $85E6        ; Process sprites
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
+       bl   @play_sound_if_int
        .call @handle_collisions        ; CALL $9796        ; Handle collisions
        .call @create_or_display_mines  ; CALL $8E2D        ;
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
+       bl   @play_sound_if_int
        .call @handle_waves             ; CALL $8BD9        ; Manage waves
        .call @create_sprite_from_map_entry ; CALL $AAF1        ; Create sprite from map entry
 ;       .call @read_register            ; CALL $1FDC        ; READ_REGISTER
+       bl   @play_sound_if_int
        .call @create_laser_fence_or_meteor ; CALL $8D50        ; Create laser fence
        .call @next_frame_upl_sprites   ; CALL $84B1        ; Upload sprites
        .call @display_center_enemies   ; CALL $AB72        ; Display center enemies
@@ -156,8 +159,7 @@ died_1:                                 ; >814f
        cb   a,*hl                      ; CP (HL)           ; ...
        jeq  lose_life                  ; JR Z,$8170        ; When all are centered then jump to lose life
 died_2:                                ; >815e
-       .halt                           ; HALT              ;
-       .call @sound_player
+        bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @process_sprites          ; CALL $85E6        ; Process sprites
        .call @create_or_display_mines  ; CALL $8E2D        ; Create or display mines
@@ -187,8 +189,7 @@ lose_life:                             ; >8170
        sb   b,b                        ; LD B,$00          ; Stars for 256 frames
 game_over_loop:                        ; >8192
        .push bc                        ; PUSH BC           ; ...
-       .halt                           ; HALT              ; ...
-       .call @sound_player
+        bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .pop bc                         ; POP BC            ; ...
        sb   one,b                      ; DJNZ $8192        ; ...
@@ -249,7 +250,7 @@ wait_for_restart:                      ; >81ed
        li   hl,>4650                   ; LD HL,$4650       ; 300 seconds
        mov  hl,@screensaver_countdown  ; LD ($7257),HL     ; Set screensaver countdown
 wait_for_restart_loop:                 ; >81f3
-       .halt                           ; HALT              ;
+        bl   @wait_int_play_sound
 ;       li   hl,>0001                   ; LD HL,$0001       ; Controller 0, segment 1
 ;       bl   @decoder                   ; CALL $1F79        ; DECODER
 ;       movb @l,a                       ; LD A,L            ;
@@ -466,8 +467,7 @@ stage_completed_1:                     ; >833c
        movb @bytes+>5a,b               ; LD B,$5A          ; 90
 stage_completed_loop:                     ; >833e
        .push bc                        ; PUSH BC           ;
-       .halt                           ; HALT              ; Wait interrupt
-       .call @sound_player
+        bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @process_sprites          ; CALL $85E6        ; Process sprites
@@ -506,8 +506,7 @@ stage_completed_4:                     ; >836d
        .call @upload_sprite_data       ; CALL $ACF9        ; Upload sprite data
 * Warp
 warp_loop:                             ; >838a
-       .halt                           ; HALT              ; Wait interrupt
-       .call @sound_player
+        bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @process_sprites          ; CALL $85E6        ; Process sprites
@@ -659,9 +658,8 @@ display_bonus_score_1:                 ; >8489
        .call @display_score            ; CALL $A699        ; Display score
        movb @bytes+>07,b               ; LD B,$07          ; 7 frames
 bonus_score_loop:                 ; >8496
-       .halt                           ; HALT              ; Wait for interrupt
        .push bc                        ; PUSH BC           ;
-       .call @sound_player
+        bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @process_sprites          ; CALL $85E6        ; Process sprites
@@ -793,6 +791,24 @@ clear_rows_9_and_14:                   ; >84ed
 ;       .pop iy                         ; POP IY            ;
 ;       .pop ix                         ; POP IX            ;
 ;       .ret                            ; RETN              ;
+
+play_sound_if_int:
+       movb @vdpsta,r0
+       jlt  play_sound_if_int_1
+       rt
+play_sound_if_int_1:
+       .proc
+       .call @sound_player
+       .endproc
+
+wait_int_play_sound:
+       movb @vdpsta,r0
+       jlt  wait_int_play_sound_1
+       jmp  wait_int_play_sound
+wait_int_play_sound_1:
+       .proc
+       .call @sound_player
+       .endproc
 
 * STAGE message
 stage_msg:                             ; >853c
@@ -3876,11 +3892,10 @@ display_implosion:                     ; >a34c
        movb @bytes+>14,b               ; LD B,$14          ; 20
 implosion_loop:                        ; >a36e
        .push bc                        ; PUSH BC           ; Save counter
-       .call @sound_player
+        bl   @wait_int_play_sound
        .call @move_dots                ; CALL $A471        ; Move dots
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @upload_sprite_data       ; CALL $ACF9        ; Upload sprite data
-       .halt                           ; HALT              ; Wait interrupt
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @display_center_enemies   ; CALL $AB72        ; Display center enemies
        .pop bc                         ; POP BC            ; Restore counter
@@ -3907,9 +3922,8 @@ implosion_loop:                        ; >a36e
 * Game loop 60 times
        movb @bytes+>3c,b               ; LD B,$3C          ; 60
 stage_init_loop:                       ; >a3b6
-       .halt                           ; HALT              ; Wait interrupt
        .push bc                        ; PUSH BC           ; Save counter
-       .call @sound_player
+       bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @control_ship             ; CALL $A73C        ; Control ship
        .call @display_center_enemies   ; CALL $AB72        ; Display center enemies
@@ -3996,9 +4010,8 @@ explode_loop_1:                        ; >a450
        .call @upload_sprite_data       ; CALL $ACF9        ; Upload sprite data
        movb @bytes+>09,b               ; LD B,$09          ; 9
 explode_loop_2:                        ; >a459
-;       .halt                           ; HALT              ; Inner loop
        .push bc                        ; PUSH BC           ;
-       .call @sound_player
+       bl   @wait_int_play_sound
        .call @display_stars            ; CALL $AFFF        ; Display stars
        .call @process_sprites          ; CALL $85E6        ; Process sprites
        .call @display_center_enemies   ; CALL $AB72        ; Display center enemies
