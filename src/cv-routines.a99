@@ -97,12 +97,17 @@ write_register:
        rt
 
 read_vram:
-       .proc
-       mov  de,r0
-       mov  hl,r1
-       mov  bc,r2
-       bl   @vmbr
-       .endproc
+       swpb de
+       movb de,@vdpwa                  ; Send low byte of VDP RAM read address
+       swpb de
+       andi de,>3fff                   ; Set read/write bits 14 and 15 to read (00)
+       movb de,@vdpwa                  ; Send high byte of VDP RAM read address
+       li   r0,vdprd
+read_vram_1:
+       movb *r0,*hl+
+       dec  bc
+       jne  read_vram_1
+       rt
 
 write_vram:
        swpb de

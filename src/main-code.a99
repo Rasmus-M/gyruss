@@ -534,7 +534,7 @@ stage_completed_7:                     ; >83c2
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern sprite 0
        li   ix,sprite_data_1           ; LD IX,$700E       ; Sprite 1
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern sprite 1
-       .call @display_ship_background_patterns ; CALL $A808        ; Display ship background patterns
+       .call @display_ship_bg_patterns ; CALL $A808        ; Display ship background patterns
 stage_completed_8:                     ; >83cb
        .call @next_frame_upl_sprites   ; CALL $84B1        ; Upload sprites
        jmp  warp_loop          ; JR $838A          ; Loop
@@ -3710,7 +3710,7 @@ ship_hit_sprite:                       ; >9a38
        jhe  ship_hit_enemy             ; JR NC,$9A49       ; Then handle collision with enemy
        li   hl,active_enemy_shots      ; LD HL,$7252       ; Decrement enemy shots
        sb   one,*hl                    ; DEC (HL)          ; ...
-       jmp  _9a6d                      ; JR $9A6D          ; Set died flag and return
+       jmp  ship_hit_enemy_2           ; JR $9A6D          ; Set died flag and return
 
 * Collision of ship with enemy
 *
@@ -3721,9 +3721,9 @@ ship_hit_sprite:                       ; >9a38
 * I:IY Sprite data of ship
 ship_hit_enemy:                        ; >9a49
        cb   a,@bytes+>0e               ; CP $0E            ; If < $0E
-       jl   _9a6d                      ; JR C,$9A6D        ; Then set died flag and return
+       jl   ship_hit_enemy_2           ; JR C,$9A6D        ; Then set died flag and return
        cb   a,@bytes+>12               ; CP $12            ; If >= $12
-       jhe  _9a6d                      ; JR NC,$9A6D       ; Then set died flag and return
+       jhe  ship_hit_enemy_2           ; JR NC,$9A6D       ; Then set died flag and return
        li   hl,active_enemies          ; LD HL,$722C       ; Decrement active enemies
        sb   one,*hl                    ; DEC (HL)          ; ...
        .call @deallocate_sprite_from_map ; CALL $AB53        ; Deallocate from map
@@ -3733,14 +3733,14 @@ ship_hit_enemy:                        ; >9a49
        sb   @>06(ix),@>06(ix)          ; LD (IX+$06),$00   ;
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern
 * This entry point is used by the routine at #R$9A75.
-_9a69:                                 ; >9a69
+ship_hit_enemy_1:                      ; >9a69
        li   hl,total_enemies           ; LD HL,$7206       ; Decrement total enemies
        sb   one,*hl                    ; DEC (HL)          ; ...
 * This entry point is used by the routine at #R$9A38.
-_9a6d:                                 ; >9a6d
+ship_hit_enemy_2:                      ; >9a6d
        li   hl,status_flags            ; LD HL,$71EB       ; Set died flag
        socb @bits+2,*hl                ; SET 2,(HL)        ; ...
-       b    @handle_collisions_2                     ; JP $97F3          ; Jump back into collisions loop
+       b    @handle_collisions_2       ; JP $97F3          ; Jump back into collisions loop
 
 * Collision of ship with mine
 *
@@ -3749,12 +3749,12 @@ _9a6d:                                 ; >9a6d
 * I: IX Sprite data of ship
 * I: IY Mine data
 ship_hit_mine:                         ; >9a75
-       sb   @>04(iy),@>04(iy)          ; LD (IY+$04),$00   ; Remove mine
-       sb   @>05(iy),@>05(iy)          ; LD (IY+$05),$00   ; ...
+       movb @zero,@>04(iy)             ; LD (IY+$04),$00   ; Remove mine
+       movb @zero,@>05(iy)             ; LD (IY+$05),$00   ; ...
        .call @display_background_patterns ; CALL $8B12        ; Display background patterns
        li   hl,mines_left              ; LD HL,$722D       ; Decrement mines left
        sb   one,*hl                    ; DEC (HL)          ; ...
-       jmp  _9a69                      ; JR $9A69          ; Die and return to loop
+       jmp  ship_hit_enemy_1                      ; JR $9A69          ; Die and return to loop
 
 * Polar x distance
 *
@@ -3915,7 +3915,7 @@ implosion_loop:                        ; >a36e
        sb   @>02(ix),@>02(ix)          ; LD (IX+$02),$00   ; Polar x
        movb @bytes+>04,@>0b(ix)        ; LD (IX+$0B),$04   ; Set color (blue)
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern
-       .call @display_ship_background_patterns ; CALL $A808        ; Display ship background patterns
+       .call @display_ship_bg_patterns ; CALL $A808        ; Display ship background patterns
        .call @upload_sprite_data       ; CALL $ACF9        ; Upload sprite data
        movb @bytes+>07,a               ; LD A,$07          ; Play a sound
        .call @call_play_sound          ; CALL $9EA3        ; ...
@@ -3952,7 +3952,7 @@ initial_game_loop_1:
 explode:                               ; >a3e1
        movb @bytes+>2a,a               ; LD A,$2A          ;
        movb a,@sprite_data+>0001       ; LD ($7003),A      ;
-       .call @display_ship_background_patterns ; CALL $A808        ; Display ship background patterns
+       .call @display_ship_bg_patterns ; CALL $A808        ; Display ship background patterns
        movb @bytes+>7f,a               ; LD A,$7F          ; Not allocated
        movb a,@sprite_data             ; LD ($7002),A      ; 1st sprite
        movb a,@sprite_data_1           ; LD ($700E),A      ; 2nd sprite
@@ -4161,15 +4161,15 @@ add_score:                             ; >a6ec
        li   de,score_player_1          ; LD DE,$71F3       ; Score player 1
 ;       socb a,a                        ; OR A              ; Is it player 1?
        movb a,a
-       jeq  _a6fd                      ; JR Z,$A6FD        ; The skip ahead
+       jeq  add_score_1                ; JR Z,$A6FD        ; The skip ahead
        li   de,score_player_2          ; LD DE,$71F9       ; Score player 2
-_a6fd:                                 ; >a6fd
+add_score_1:                           ; >a6fd
        .push de                        ; PUSH DE           ; Save pointer to score
        li   hl,points_to_add           ; LD HL,$72C8       ; Pointer to points to add
 
        movb @bytes+>03,b               ; LD B,$03          ; 3 bytes in score
        clr  r1
-_a703:                                 ; >a703
+add_score_2:                           ; >a703
        movb *de,a                      ; LD A,(DE)         ; Get score byte
        andi  r1,>1000                  ; Check and add carry
        jeq  !                          ; ...
@@ -4181,7 +4181,7 @@ _a703:                                 ; >a703
        inc  de                         ; INC DE            ; Next score byte
        inc  hl                         ; INC HL            ; Next points byte
        sb   one,b                      ; DJNZ $A703        ; Loop 3 times
-       jne  _a703                      ;
+       jne  add_score_2                      ;
        .pop de                         ; POP DE            ; Restore pointer to score
 ;       inc  de                         ; INC DE            ; Advance to last byte of extra life score $71F5 or $71FB
 ;       inc  de                         ; INC DE            ; ...
@@ -4191,35 +4191,35 @@ _a703:                                 ; >a703
        a    de,hl                      ; ADD HL,DE         ; ...
        .push hl                        ; PUSH HL           ; Save pointer
        movb @bytes+>03,b               ; LD B,$03          ; 3 bytes to check
-_a715:                                 ; >a715
+add_score_3:                           ; >a715
        movb *de,a                      ; LD A,(DE)         ; Get score byte
        cb   a,*hl                      ; CP (HL)           ; Compare with extra life byte
-       jne  _a71e                      ; JR NZ,$A71E       ; Exit loop if not equal
+       jne  add_score_4                ; JR NZ,$A71E       ; Exit loop if not equal
        dec  de                         ; DEC DE            ; Previous score byte
        dec  hl                         ; DEC HL            ; Previous extra life byte
        sb   one,b                      ; DJNZ $A715        ; Loop 3 times
-       jne  _a715                      ;
+       jne  add_score_3                ;
        sb   a,a                        ; XOR A             ; All equal, set A = 0
        mov  a,r0
        jmp  !
-_a71e:                                 ; >a71e
+add_score_4:                           ; >a71e
        movb *hl,r0
 !      .pop hl                         ; POP HL            ; Restore pointer to #R$71F8 or #R$71FE
        cb   a,r0
-       jl  _a739                       ; JR C,$A739        ; Return if extra life byte was bigger
+       jl  add_score_5                 ; JR C,$A739        ; Return if extra life byte was bigger
        movb *hl,a                      ; LD A,(HL)         ; Next extra life at 80000 more points
        ab   @bytes+>08,a               ; ADD A,$08         ; ...
        .daa                            ; DAA               ; ...
        movb a,*hl                      ; LD (HL),A         ; ...
        movb @lives,a                   ; LD A,($71FF)      ; Get lives
        cb   a,@bytes+>09               ; CP $09            ; Return if already 9
-       jhe  _a739                      ; JR NC,$A739       ; ...
+       jhe  add_score_5                ; JR NC,$A739       ; ...
        ab   one,a                      ; INC A             ; Extra life
        movb a,@lives                   ; LD ($71FF),A      ; Save it
        .call @display_lives            ; CALL $A6D2        ; Display lives
        movb @bytes+>06,a               ; LD A,$06          ; Play a sound
        .call @call_play_sound          ; CALL $9EA3        ; ...
-_a739:                                 ; >a739
+add_score_5:                           ; >a739
        .pop bc                         ; POP BC            ;
        .pop de                         ; POP DE            ;
        .ret                            ; RET               ;
@@ -4270,7 +4270,7 @@ _a76d:                                 ; >a76d
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern sprite 0
        li   ix,sprite_data_1           ; LD IX,$700E       ; Sprite 1
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern sprite 1
-       .call @display_ship_background_patterns ; CALL $A808        ; Display ship background patterns
+       .call @display_ship_bg_patterns ; CALL $A808        ; Display ship background patterns
 * Handle fire
 _a781:                                 ; >a781
        movb @status_flags,a            ; LD A,($71EB)      ; Test stage init flag
@@ -4374,7 +4374,7 @@ clear_fire_pressed:                    ; >a805
 * Display ship background patterns
 *
 * Used by the routines at #R$832A, #R$A33B, #R$A3E1 and #R$A73C.
-display_ship_background_patterns:      ; >a808
+display_ship_bg_patterns:              ; >a808
        .push hl                        ; PUSH HL           ;
        .push de                        ; PUSH DE           ;
        .push bc                        ; PUSH BC           ;
