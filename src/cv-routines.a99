@@ -114,6 +114,27 @@ write_vram_1:
        jne  write_vram_1
        rt
 
+unrolled_write_vram:
+       swpb de
+       movb de,@vdpwa                  ; Send low byte of VDP RAM write address
+       swpb de
+       ori  de,>4000                   ; Set read/write bits 14 and 15 to write (01)
+       movb de,@vdpwa                  ; Send high byte of VDP RAM write address
+       li   de,vdpwd
+       srl  bc,3
+unrolled_write_vram_1:
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       movb *hl+,*de                   ; Write byte to VDP RAM
+       dec  bc
+       jne  unrolled_write_vram_1
+       rt
+
 fill_vram:
        mov  hl,r0
        mov  a,r1

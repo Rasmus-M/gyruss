@@ -1918,20 +1918,27 @@ display_background_patterns:           ; >8b12
        mov  hl,hl
        jeq  _8b2d                      ; JR Z,$8B2D        ; Then skip ahead
 * Clear name table area
-       movb @bytes+>03,@c              ; LD C,$03          ; 3 rows
-_8b1e:                                 ; >8b1e
-       .ex_de_hl                       ; EX DE,HL          ; DE now VDP address
-       movb @bytes+>03,b               ; LD B,$03          ; 3 columns
+       li   bc,3                       ; LD C,$03          ; 3 rows
+       li   r1,vdpwd
+       mov  hl,de
+display_background_patterns_1:          ; >8b1e
+;       .ex_de_hl                       ; EX DE,HL          ; DE now VDP address
+;       movb @bytes+>03,b               ; LD B,$03          ; 3 columns
        sb   a,a                        ; XOR A             ; Zero to clear
-_8b22:                                 ; >8b22
-       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
-       inc  de                         ; INC DE            ; Next VDP address
-       sb   one,b                      ; DJNZ $8B22        ; Inner loop
-       jne  _8b22                      ;
-       li   hl,>001d                   ; LD HL,$001D       ; One row down and 3 columns back
-       a    de,hl                      ; ADD HL,DE         ; ...
-       sb   one,@c                     ; DEC C             ; Row counter
-       jne  _8b1e                      ; JR NZ,$8B1E       ; Outer loop
+;_8b22:                                 ; >8b22
+;       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
+;       inc  de                         ; INC DE            ; Next VDP address
+;       sb   one,b                      ; DJNZ $8B22        ; Inner loop
+;       jne  _8b22                      ;
+       bl   @vdp_write_address
+       movb a,*r1
+       movb a,*r1
+       movb a,*r1
+;       li   hl,>001d                   ; LD HL,$001D       ; One row down and 3 columns back
+;       a    de,hl                      ; ADD HL,DE         ; ...
+       ai   de,>0020
+       dec  bc                         ; DEC C             ; Row counter
+       jne  display_background_patterns_1 ; JR NZ,$8B1E       ; Outer loop
 _8b2d:                                 ; >8b2d
        movb @zero,@>02(iy)             ; LD (IY+$02),$00   ; Reset name table address
        movb @zero,@>03(iy)             ; LD (IY+$03),$00   ; ...
@@ -2011,7 +2018,7 @@ _8b7c:                                 ; >8b7c
        .ex_de_hl                       ; EX DE,HL          ; DE now VDP address in pattern table
        li   hl,buffer                  ; LD HL,$71A3       ; Source address
        li   bc,>0048                   ; LD BC,$0048       ; 72 bytes (9 patterns)
-       bl    @write_vram               ; RST $38           ; WRITE_VRAM
+       bl    @unrolled_write_vram      ; RST $38           ; WRITE_VRAM
 * Update name table (3 x 3)
        movb @>01(iy),a                 ; LD A,(IY+$01)     ; Get screen y
        andi a,>f800                    ; AND $F8           ; Round to characters
@@ -2033,22 +2040,32 @@ _8b7c:                                 ; >8b7c
        a    de,hl                      ; ADD HL,DE         ; Add to address in HL
        movb @l,@>02(iy)                ; LD (IY+$02),L     ; Store address
        movb h,@>03(iy)                 ; LD (IY+$03),H     ; ...
-       movb @bytes+>03,@c              ; LD C,$03          ; 3 rows
+       li   bc,3                       ; LD C,$03          ; 3 rows
        movb @>06(iy),a                 ; LD A,(IY+$06)     ; Get name
-_8bc6:                                 ; >8bc6
-       .ex_de_hl                       ; EX DE,HL          ; DE is now VDP address
-       movb @bytes+>03,b               ; LD B,$03          ; 3 columns
-_8bc9:                                 ; >8bc9
-       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
-       ab   @bytes+>03,a               ; ADD A,$03         ; Name += 3 (columns 3 apart)
-       inc  de                         ; INC DE            ; Next VDP address
-       sb   one,b                      ; DJNZ $8BC9        ; Inner loop for 3 bytes
-       jne  _8bc9                      ;
-       sb   @bytes+>08,a               ; SUB $08           ; Name -= 8 (rows 1 apart)
-       li   hl,>001d                   ; LD HL,$001D       ; One row down and 3 columns back
-       a    de,hl                      ; ADD HL,DE         ; ...
-       sb   one,@c                     ; DEC C             ; Row counter
-       jne  _8bc6                      ; JR NZ,$8BC6       ; Outer loop for 3 bytes
+       li   r1,vdpwd
+       mov  hl,de
+display_background_patterns_5:          ; >8bc6
+;       .ex_de_hl                       ; EX DE,HL          ; DE is now VDP address
+;       movb @bytes+>03,b               ; LD B,$03          ; 3 columns
+;_8bc9:                                 ; >8bc9
+;       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
+;       ab   @bytes+>03,a               ; ADD A,$03         ; Name += 3 (columns 3 apart)
+;       inc  de                         ; INC DE            ; Next VDP address
+;       sb   one,b                      ; DJNZ $8BC9        ; Inner loop for 3 bytes
+;       jne  _8bc9                      ;
+       bl   @vdp_write_address
+       movb a,*r1
+       ab   @bytes+>03,a
+       movb a,*r1
+       ab   @bytes+>03,a
+       movb a,*r1
+;       sb   @bytes+>08,a               ; SUB $08           ; Name -= 8 (rows 1 apart)
+       sb   @bytes+>05,a
+;       li   hl,>001d                   ; LD HL,$001D       ; One row down and 3 columns back
+;       a    de,hl                      ; ADD HL,DE         ; ...
+       ai   de,>0020
+       dec  bc                         ; DEC C             ; Row counter
+       jne  display_background_patterns_5 ; JR NZ,$8BC6       ; Outer loop for 3 bytes
        .ret                            ; RET               ;
 
 * Manage waves
@@ -3774,6 +3791,13 @@ add_a_to_hl:                           ; >9ab3
        movb a,@r0lb
        a    r0,hl
        rt                              ; RET               ;
+
+vdp_write_address:
+       movb @e,@vdpwa
+       mov  de,r0
+       ori  r0,>4000
+       movb r0,@vdpwa
+       rt
 
 * VDP write byte (RST $10)
 *
