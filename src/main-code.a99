@@ -13,6 +13,7 @@ entry:                                 ; >8024
        .call @start_screen             ; CALL $90D6        ; Start screen
        li   hl,>2A30                   ; LD HL,$2A30       ; 180 * 60 frames
        mov  hl,@screensaver_countdown  ; LD ($7257),HL     ; Set screensaver countdown
+       jmp  new_game
 entry_wait_fire:                       ; >8047
        .halt                           ; HALT              ; Wait for interrupt
        .call @display_stars            ; CALL $AFFF        ; Display stars
@@ -1210,11 +1211,10 @@ _875d:                                 ; >875d
        jeq  _8787                      ; JR Z,$8787        ; Then skip ahead
        inc  hl                         ; INC HL            ; Did center reach end 1?
        cb   a,*hl                      ; CP (HL)           ; ...
-       jeq  !                          ; RET NZ            ; If not, return to #R$8A41
+       jeq  _8787                      ; RET NZ            ; If not, return to #R$8A41
        .ret                            ;
-!
 _8787:                                 ; >8787
-       equ  $
+       clr  af
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Switch direction
        neg a                           ; NEG               ; ...
        movb a,@>03(ix)                 ; LD (IX+$03),A     ; ...
@@ -1312,7 +1312,7 @@ move_to_center_3:                      ; >8801
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
        cb   a,d                        ; CP D              ; Compare with polar y from map
        jeq  return_enemy_to_map        ; JR Z,$8815        ; If same, return enemy to map
-       jlt  move_to_center_4           ; JR C,$8811        ; If less than, skip to increment polar y
+       jl   move_to_center_4           ; JR C,$8811        ; If less than, skip to increment polar y
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
        jmp  move_to_center_5           ; RET               ; Return to #R$8A41
 move_to_center_4:                      ; >8811
@@ -1859,6 +1859,7 @@ move_towards_x:                        ; >8ac0
        cb   r0,@>02(ix)
        jhe  move_towards_x_1           ; JR NC,$8ACC       ; Jump if distance > 0
        movb @b255,b                    ; LD B,$FF          ; Direction = -1
+       andi af,>ff00
        neg a                           ; NEG               ; abs(distance)
 move_towards_x_1:                      ; >8acc
 ;       cb   a,@bytes+>21               ; CP $21            ; Is it longer than half way around?
@@ -1866,6 +1867,7 @@ move_towards_x_1:                      ; >8acc
        movb b,a                        ; LD A,B            ; A = direction
        cb   r0,@bytes+>21
        jl   move_towards_x_2           ; JR C,$8AD3        ; Jump if not
+       andi af,>ff00
        neg a                           ; NEG               ; Else switch direction
 move_towards_x_2:                      ; >8ad3
        movb a,b                        ; LD B,A            ; B = direction
@@ -2464,7 +2466,7 @@ create_or_display_mines:               ; >8e2d
        jne  !                          ; JP Z,$8E9D        ; Then create mines
        b    @create_mines              ;
 !
-       jlt  !                          ; JP NC,$8F55       ; If 2 then display mines
+       jl  !                           ; JP NC,$8F55       ; If 2 then display mines
        b    @_8f55                     ;
 !
        movb @status_flags,a            ; LD A,($71EB)      ; If died
@@ -3391,6 +3393,7 @@ _9891:                                 ; >9891
 ;       jnc  _989b                      ; JR NC,$989B       ; Absolute value
 ;       neg a                           ; NEG               ; ...
 ;_989b:                                 ; >989b
+       andi af,>ff00
        abs  a
        cb   a,@bytes+>02               ; CP $02            ; If >= 2
        jhe  _98bb                      ; JR NC,$98BB       ; Then move to next sprite
@@ -3436,6 +3439,7 @@ _98d1:                                 ; >98d1
 ;       jnc  _98e0                      ; JR NC,$98E0       ; Take absolute value
 ;       neg a                           ; NEG               ; ...
 ;_98e0:                                 ; >98e0
+       andi af,>ff00
        abs  a
        cb   a,@bytes+>02               ; CP $02            ; If < 2
        jhe  _98eb                      ; JR NC,$98EB       ; Then move on to next
@@ -3463,6 +3467,7 @@ _98f7:                                 ; >98f7
 ;       jnc  _9909                      ; JR NC,$9909       ; Absolute value
 ;       neg a                           ; NEG               ; ...
 ;_9909:                                 ; >9909
+       andi af,>ff00
        abs  a
        cb   a,@bytes+>02               ; CP $02            ; >= 2
        jhe  _991d                      ; JR NC,$991D       ; Then move on to next mine
@@ -3745,6 +3750,7 @@ polar_x_distance:                      ; >9a86
 ;       jnc  _9a8e                      ; JR NC,$9A8E       ; Jump ahead of >= 0
 ;       neg a                           ; NEG               ; Else make positive
 ;_9a8e:                                 ; >9a8e
+       andi af,>ff00
        abs  a
        cb   a,@bytes+>20               ; CP $20            ; Is it < 32?
        jl   polar_x_distance_3         ; RET C             ; Then return
@@ -3763,6 +3769,7 @@ polar_x_distance_2:                    ; >9aa2
        sb   r0,a                       ; SUB C             ; Subtract the modified polar x1
        cb   r0,r1
        jhe  polar_x_distance_3         ; RET NC            ; Return if >= 0
+       andi af,>ff00
        neg a                           ; NEG               ; Else make positive
 polar_x_distance_3:
        rt                              ; RET               ; And return
@@ -4230,6 +4237,7 @@ control_ship:                          ; >a73c
        jeq  _a781                      ; JR Z,$A781        ; If zero then skip ahead (already there)
        jgt  _a766                      ; JR NC,$A766       ; If positive skip ahead
        movb @b255,b                    ; LD B,$FF          ; Direction = -1 (anti-clockwise)
+       andi af,>ff00
        neg a                           ; NEG               ; abs(value - polar x)
 _a766:                                 ; >a766
 ;       cb   a,@bytes+>21               ; CP $21            ; Is the difference < 33?
@@ -4237,6 +4245,7 @@ _a766:                                 ; >a766
        movb b,a                        ; LD A,B            ; Direction
        cb   r0,@bytes+>21
        jl   _a76d                      ; JR C,$A76D        ; Then skip ahead
+       andi af,>ff00
        neg a                           ; NEG               ; Otherwise reverse direction
 _a76d:                                 ; >a76d
        ab   @>02(ix),a                 ; ADD A,(IX+$02)    ; Polar x + direction
@@ -4643,6 +4652,7 @@ display_center_enemies:                ; >ab72
 ;       jgt  _ab8a                      ; JP P,$AB8A        ; If y counter > 0 then skip ahead
 ;       neg a                           ; NEG               ; Else make positive
 ;_ab8a:                                 ; >ab8a
+       andi af,>ff00
        abs a
        cb   a,one                      ; CP $01            ; If not 1
        jne  _ab9b                      ; JR NZ,$AB9B       ; Then skip ahead
@@ -4797,8 +4807,10 @@ plot_pixel:                            ; >ac47
        andi a,>fc00                    ; AND $FC           ; Y offset (byte offset * 4)
        movb a,@c                       ; LD C,A            ; Store in C
        movb @e,a                       ; LD A,E            ; Screen x
+       movb a,r0
        sb   @bytes+>70,a               ; SUB $70           ; - 112
-       jgt  _ac56                      ; JR NC,$AC56       ; If < 0
+       cb   r0,@bytes+>70
+       jhe  _ac56                      ; JR NC,$AC56       ; If < 0
        sb   a,a                        ; XOR A             ; Then set to 0
 _ac56:                                 ; >ac56
        cb   a,@bytes+>20               ; CP $20            ; If < 32
@@ -5644,6 +5656,7 @@ polar_to_screen_1:                     ; >b1de
        movb *hl,a                      ; LD A,(HL)         ; Get table value
        czc  @bit4,r0
        jeq  polar_to_screen_2          ; JR Z,$B1FD        ; Skip negating if not top of screen
+       andi af,>ff00
        neg a                           ; NEG               ; -table value
 polar_to_screen_2:                     ; >b1fd
        ab   @>01(ix),a                 ; ADD A,(IX+$00)    ; +center y ($60) (changed since high endian)
@@ -5653,6 +5666,7 @@ polar_to_screen_2:                     ; >b1fd
        movb *hl,a                      ; LD A,(HL)         ; Get table value
        czc  @bit5l,de                  ; BIT 5,E           ; Test bit 5 of x (left/right)
        jne  polar_to_screen_3          ; JR NZ,$B20B       ; Skip negating if right
+       andi af,>ff00
        neg a                           ; NEG               ; -table value
 polar_to_screen_3:                     ; >b20b
        ab   *ix,a                      ; ADD A,(IX+$01)    ; +center x ($80 or $B5 or ?) (changed since high endian)

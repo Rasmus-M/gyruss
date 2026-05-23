@@ -583,17 +583,17 @@ center_enemies_name_2:                 ; >72cf
 center_enemies_pattern:                ; >72d0
        data >0000
 
-* Y counter direction
+* Y offset direction
 y_offset_direction:                   ; >72d2
        byte >00
 
-* Y counter
+* Center y offset
 *
 * Goes -1, 0, 1, 0, -1, 0, 1, 0, ...
 center_y_offset:                             ; >72d3
        byte >00
 
-* X counter
+* Center x offset
 *
 * Counter $00 - $3F
 center_x_offset:                             ; >72d4
