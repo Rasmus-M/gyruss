@@ -500,9 +500,11 @@ sound_fx_command_jump_table:           ; >9d91
 sound_fx_command_3:                    ; >9da7
        movb @>04(ix),a                 ; LD A,(IX+$04)     ; Get attenuation/noise control (starts with $00)
        ab   one,a                      ; INC A             ; Increment
-       movb a,@c                       ; LD C,A            ; And save
-       andi a,>0f00                    ; AND $0F           ; Test if bits 0-3 were 0
-       movb @c,a                       ; LD A,C            ; Restore incremented value
+;       movb a,@c                       ; LD C,A            ; And save
+;       andi a,>0f00                    ; AND $0F           ; Test if bits 0-3 were 0
+;       movb @c,a                       ; LD A,C            ; Restore incremented value
+       movb a,r0
+       andi r0,>0f00
        jne  sound_fx_command_3_a       ; JR NZ,$9DB5       ; If bits weren't 0 then skip next
        ab   @bytes+>10,a               ; ADD A,$10         ; Add 1 to attenuation
        jeq  current_sound_fx_done      ; JR Z,$9DFC        ; If it rolled over then sound FX done
