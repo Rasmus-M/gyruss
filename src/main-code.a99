@@ -431,22 +431,19 @@ display_player:                        ; >830e
        movb @status_flags,a            ; LD A,($71EB)      ; Status flags
        movb a,r0                       ; BIT 7,A           ; Check bit for 2 players
        andi r0,>8000                   ;
-       jne  !                          ; RET Z             ; Return if not set
-       .ret                            ;
-!
+       jeq  display_player_1           ; RET Z             ; Return if not set
        li   hl,player_msg              ; LD HL,$8581       ; PLAYER 1 message
        li   de,>192c                   ; LD DE,$192C       ; VDP address
        li   bc,>0008                   ; LD BC,$0008       ; 8 characters
        bl    @write_vram               ; RST $38           ; WRITE_VRAM
        movb @current_player,a          ; LD A,($71F1)      ; Current player
 ;       socb a,a                        ; OR A              ; Is it player 1?
-       jne  !                          ; RET Z             ; The return
-       .ret                            ;
-!
+       jeq  display_player_1           ; RET Z             ; The return
        movb @bytes+>32,a               ; LD A,$32          ; ASCII 2
        li   de,>1933                   ; LD DE,$1933       ; VDP address
        li   de,>1933                   ; LD DE,$1933       ; VDP address
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
+display_player_1:
        .ret                            ; RET               ;
 
 * Stage completed
@@ -4725,13 +4722,13 @@ _abc4:                                 ; >abc4
        sb   b,b                        ; LD B,$00          ; ...
        li   hl,pixel_offsets_table     ; LD HL,$ACCF       ; Add table base address
        a    bc,hl                      ; ADD HL,BC         ; ...
-       .call @plot_pixel               ; CALL $AC47        ; Plot pixel
+       bl   @plot_pixel               ; CALL $AC47        ; Plot pixel
        movb *hl,a                      ; LD A,(HL)         ; Get x offset
 ;       socb a,a                        ; OR A              ; If zero
        jeq  _abef                      ; JR Z,$ABEF        ; Then skip ahead
        ab   @e,a                       ; ADD A,E           ; Add to screen x
        movb a,@e                       ; LD E,A            ; ...
-       .call @plot_pixel               ; CALL $AC47        ; Plot pixel
+       bl   @plot_pixel               ; CALL $AC47        ; Plot pixel
 _abef:                                 ; >abef
        inc  hl                         ; INC HL            ; Next table address
        .pop de                         ; POP DE            ; Restore screen coordinates
@@ -4740,7 +4737,7 @@ _abef:                                 ; >abef
        jeq  _abfa                      ; JR Z,$ABFA        ; Then skip ahead
        ab   d,a                        ; ADD A,D           ; Add to screen x
        movb a,d                        ; LD D,A            ; ...
-       .call @plot_pixel               ; CALL $AC47        ; Plot pixel
+       bl   @plot_pixel               ; CALL $AC47        ; Plot pixel
 _abfa:                                 ; >abfa
        li   hl,center_enemy_processed  ; LD HL,$72CD       ; Update counter
        ab   one,*hl                    ; INC (HL)          ; ...
@@ -4762,20 +4759,33 @@ display_center_enemies_names:          ; >abff
        jeq  erase_center_enemies       ; JR Z,$AC32        ; ...
        li   de,>194e                   ; LD DE,$194E       ; Name table VDP address
        movb @center_enemies_name_2,a   ; LD A,($72CF)      ; Get first name used for center enemies
-       movb @bytes+>04,@c              ; LD C,$04          ; 4 rows
-_ac15:                                 ; >ac15
-       movb @bytes+>04,b               ; LD B,$04          ; 4 columns
-_ac17:                                 ; >ac17
-       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
-       ab   one,a                      ; INC A             ; Next name
-       inc  de                         ; INC DE            ; Next VDP address
-       sb   one,b                      ; DJNZ $AC17        ; Loop for 4 columns
-       jne  _ac17                      ;
-       li   hl,>001c                   ; LD HL,$001C       ; One row down
-       a    de,hl                      ; ADD HL,DE         ; ...
-       .ex_de_hl                       ; EX DE,HL          ; ...
-       sb   one,@c                     ; DEC C             ; Row counter
-       jne  _ac15                      ; JR NZ,$AC15       ; Loop for 4 rows
+;       movb @bytes+>04,@c              ; LD C,$04          ; 4 rows
+       li   bc,4
+       li   r1,vdpwd
+display_center_enemies_names_1:         ; >ac15
+;       movb @bytes+>04,b               ; LD B,$04          ; 4 columns
+       bl   @vdp_write_address
+;_ac17:                                 ; >ac17
+;       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
+;       ab   one,a                      ; INC A             ; Next name
+;       inc  de                         ; INC DE            ; Next VDP address
+;       sb   one,b                      ; DJNZ $AC17        ; Loop for 4 columns
+;       jne  _ac17                      ;
+       movb a,*r1
+       ab   one,a
+       movb a,*r1
+       ab   one,a
+       movb a,*r1
+       ab   one,a
+       movb a,*r1
+       ab   one,a
+;       li   hl,>001c                   ; LD HL,$001C       ; One row down
+;       a    de,hl                      ; ADD HL,DE         ; ...
+;       .ex_de_hl                       ; EX DE,HL          ; ...
+       ai   de,>0020
+;       sb   one,@c                     ; DEC C             ; Row counter
+       dec  bc
+       jne  display_center_enemies_names_1                      ; JR NZ,$AC15       ; Loop for 4 rows
        mov  @center_enemies_name_1,hl  ; LD HL,($72CE)     ; Swap #R$72CE and #R$72CF
 ;       movb @l,a                       ; LD A,L            ; ...
 ;       movb h,@l                       ; LD L,H            ; ...
@@ -4786,25 +4796,34 @@ _ac17:                                 ; >ac17
        movb a,@center_enemy_processed  ; LD ($72CD),A      ; ...
        .ret                            ; RET               ;
 
-* Erase center enemies
+* Erase center enemies,
 *
 * Used by the routine at #R$ABFF.
 erase_center_enemies:                  ; >ac32
        li   de,>194e                   ; LD DE,$194E       ; Name table VDP address
        sb   a,a                        ; XOR A             ; Space
-       movb @bytes+>04,@c              ; LD C,$04          ; 4 rows
-_ac38:                                 ; >ac38
-       movb @bytes+>04,b               ; LD B,$04          ; 4 columns
-_ac3a:                                 ; >ac3a
-       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
-       inc  de                         ; INC DE            ; Next VDP address
-       sb   one,b                      ; DJNZ $AC3A        ; Loop for 4 columns
-       jne  _ac3a                      ;
-       li   hl,>001c                   ; LD HL,$001C       ; One row down
-       a    de,hl                      ; ADD HL,DE         ; ...
-       .ex_de_hl                       ; EX DE,HL          ; ...
-       sb   one,@c                     ; DEC C             ; Row counter
-       jne  _ac38                      ; JR NZ,$AC38       ; Lopp for 4 rows
+;       movb @bytes+>04,@c              ; LD C,$04          ; 4 rows
+       li   bc,4
+       li   r1,vdpwd
+erase_center_enemies_1:                ; >ac38
+;       movb @bytes+>04,b               ; LD B,$04          ; 4 columns
+       bl   @vdp_write_address
+;_ac3a:                                 ; >ac3a
+;       bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
+;       inc  de                         ; INC DE            ; Next VDP address
+;       sb   one,b                      ; DJNZ $AC3A        ; Loop for 4 columns
+;       jne  _ac3a                      ;
+       movb a,*r1
+       movb a,*r1
+       movb a,*r1
+       movb a,*r1
+;       li   hl,>001c                   ; LD HL,$001C       ; One row down
+;       a    de,hl                      ; ADD HL,DE         ; ...
+;       .ex_de_hl                       ; EX DE,HL          ; ...
+       ai   de,>0020
+;       sb   one,@c                     ; DEC C             ; Row counter
+       dec  bc
+       jne  erase_center_enemies_1     ; JR NZ,$AC38       ; Lopp for 4 rows
        .ret                            ; RET               ;
 
 * Plot pixel
@@ -4815,6 +4834,7 @@ _ac3a:                                 ; >ac3a
 * E: Screen x
 * I: HL Address in #R$ACCF
 plot_pixel:                            ; >ac47
+       .proc
        .push hl                        ; PUSH HL           ;
        movb d,a                        ; LD A,D            ; Screen y
        sb   @bytes+>50,a               ; SUB $50           ; - 80
@@ -4825,13 +4845,13 @@ plot_pixel:                            ; >ac47
        movb a,r0
        sb   @bytes+>70,a               ; SUB $70           ; - 112
        cb   r0,@bytes+>70
-       jhe  _ac56                      ; JR NC,$AC56       ; If < 0
+       jhe  plot_pixel_1               ; JR NC,$AC56       ; If < 0
        sb   a,a                        ; XOR A             ; Then set to 0
-_ac56:                                 ; >ac56
+plot_pixel_1:                          ; >ac56
        cb   a,@bytes+>20               ; CP $20            ; If < 32
-       jl   _ac5c                      ; JR C,$AC5C        ; Then skip ahead
+       jl   plot_pixel_2               ; JR C,$AC5C        ; Then skip ahead
        movb @bytes+>0f,a               ; LD A,$0F          ; ELse set to 15
-_ac5c:                                 ; >ac5c
+plot_pixel_2:                          ; >ac5c
 ;       srl  a,1                        ; SRL A             ; / 8
 ;       srl  a,1                        ; SRL A             ; ...
 ;       srl  a,1                        ; SRL A             ; ...
@@ -4853,11 +4873,14 @@ _ac5c:                                 ; >ac5c
        movb @e,a                       ; LD A,E            ; Screen x
        andi a,>0700                    ; AND $07           ; Pixel x offset within pattern
        movb @bytes+>80,b               ; LD B,$80          ; Leftmost pixel
+       mov  a,r0
        jeq  _ac7e                      ; JR Z,$AC7E        ; Skip ahead if zero offset
-_ac79:                                 ; >ac79
-       srl  b,1                        ; SRL B             ; Shift right 0-7 times
-       sb   one,a                      ; DEC A             ; ...
-       jne  _ac79                      ; JR NZ,$AC79       ; ...
+;_ac79:                                 ; >ac79
+;       srl  b,1                        ; SRL B             ; Shift right 0-7 times
+;       sb   one,a                      ; DEC A             ; ...
+;       jne  _ac79                      ; JR NZ,$AC79       ; ...
+       swpb r0
+       srl  b,0
 _ac7e:                                 ; >ac7e
        .ex_de_hl                       ; EX DE,HL          ; DE = VDP address, HL = coordinates
        bl   @vdp_read_byte             ; CALL $9AD0        ; Read VDP byte
@@ -4865,7 +4888,7 @@ _ac7e:                                 ; >ac7e
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
        .ex_de_hl                       ; EX DE,HL          ; DE = coordinates
        .pop hl                         ; POP HL            ;
-       .ret                            ; RET               ;
+       .endproc                              ; RET               ;
 
 * Start coordinates for sprites
 *
