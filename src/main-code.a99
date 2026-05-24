@@ -83,7 +83,8 @@ new_game:                              ; >8064
        li   hl,lives                   ; LD HL,$71FF       ; Save player data in VDP RAM, starting with lives
        li   de,>1300                   ; LD DE,$1300       ; VDP address
        li   bc,active_enemies-lives    ; LD BC,$002D       ; 45 bytes
-       bl    @write_vram               ; RST $38           ; WRITE_VRAM
+       bl   @write_vram                ; RST $38           ; WRITE_VRAM
+       movb @status_flags,@vdpwd
 new_game_1:                            ; >80e0
 ;       movb r,a                        ; LD A,R            ; Random number seed
 ;       movb a,@random_number+>0001     ; LD ($731C),A      ; Init random number
@@ -216,16 +217,21 @@ switch_player:                         ; >81ae
 switch_player_1:                       ; >81b9
        li   hl,buffer                  ; LD HL,$71A3       ; Restore player data from VDP RAM into buffer
        li   de,>1300                   ; LD DE,$1300       ; ...
-       li   bc,active_enemies-lives    ; LD BC,$002D       ; ...
+       li   bc,active_enemies-lives+1  ; LD BC,$002D       ; ...
        bl   @read_vram                 ; CALL $1FE2        ; READ_VRAM
        li   hl,lives                   ; LD HL,$71FF       ; Save player data to VDP RAM
        li   de,>1300                   ; LD DE,$1300       ; ...
        li   bc,active_enemies-lives    ; LD BC,$002D       ; ...
        bl    @write_vram               ; RST $38           ; WRITE_VRAM
+       movb @status_flags,@vdpwd
        li   hl,buffer                  ; LD HL,$71A3       ; Copy data from buffer to right place
        li   de,lives                   ; LD DE,$71FF       ; ...
        li   bc,active_enemies-lives    ; LD BC,$002D       ; ...
        .ldir                           ; LDIR              ; ...
+       movb *hl,a                      ; Get saved status flags (bugfix)
+       andi a,>0200                    ; Keep only waves completed flag
+       szcb @bits+1,@status_flags      ; Apply flag
+       socb a,@status_flags            ; ...
        movb @current_player,a          ; LD A,($71F1)      ; Current player
        xor  one,a                      ; XOR $01           ; Switch player
        movb a,@current_player          ; LD ($71F1),A      ; Save again
@@ -2459,15 +2465,15 @@ enemy_movement_table:                  ; >8e25
 * Used by the routines at #R$80E8, #R$8139 and #R$A3E1.
 create_or_display_mines:               ; >8e2d
        movb @status_flags,a            ; LD A,($71EB)      ; Get flags
-       czc  @bit1,1                    ; BIT 1,A           ; If all waves completed bit is not set
-       jeq  init_mine_variables        ; JR Z,$8E89        ; Then init variables
+       czc  @bit1,a                    ; BIT 1,A           ; If all waves completed bit is not set
+       jeq  init_mine_variables        ; JR Z,$8E89        ; Then init variables and return
        movb @mines_action,a            ; LD A,($7264)      ; Get mines action (0-2)
        cb   a,one                      ; CP $01            ; If 1
        jne  !                          ; JP Z,$8E9D        ; Then create mines
        b    @create_mines              ;
 !
        jl  !                           ; JP NC,$8F55       ; If 2 then display mines
-       b    @_8f55                     ;
+       b    @display_mines             ;
 !
        movb @status_flags,a            ; LD A,($71EB)      ; If died
        czc  @bit2,a                    ; BIT 2,A           ; ...
@@ -2500,12 +2506,12 @@ create_or_display_mines:               ; >8e2d
        movb a,b                        ; LD B,A            ; B = planet
        movb @bytes+>05,a               ; LD A,$05          ; A = 5
        sb   b,a                        ; SUB B             ; 5 - planet
-       jlt  _8e6d                      ; JR C,$8E6D        ; If planet > 5 then skip ahead and set to 2
+       jlt  create_or_display_mines_1                      ; JR C,$8E6D        ; If planet > 5 then skip ahead and set to 2
        cb   a,@bytes+>02               ; CP $02            ; If 5 - planet >= 2 then skip ahead
-       jhe  _8e6f                      ; JR NC,$8E6F       ; ...
-_8e6d:                                 ; >8e6d
+       jhe  create_or_display_mines_2                      ; JR NC,$8E6F       ; ...
+create_or_display_mines_1:             ; >8e6d
        movb @bytes+>02,a               ; LD A,$02          ; Set to 2
-_8e6f:                                 ; >8e6f
+create_or_display_mines_2:             ; >8e6f
        li   hl,stage_death_count       ; LD HL,$7204       ; Number of times died within stage
        cb   a,*hl                      ; CP (HL)           ; Return if >= calculated value (2, 3, 4, 5)
        jhe  !                          ; RET C             ; ...
@@ -2558,10 +2564,10 @@ create_mines:                          ; >8e9d
        movb @bytes+>40,@c              ; LD C,$40          ; Color
        movb @other_flags,a             ; LD A,($7256)      ; Test double shot flag
        czc  @bit1,a                    ; BIT 1,A           ; ...
-       jne  _8ec2                      ; JR NZ,$8EC2       ; If set then skip ahead
+       jne  create_mines_1             ; JR NZ,$8EC2       ; If set then skip ahead
        li   hl,mine_graphics           ; LD HL,$9096       ; Mine graphics (if double shot off)
        movb @bytes+>90,@c              ; LD C,$90          ;
-_8ec2:                                 ; >8ec2
+create_mines_1:                        ; >8ec2
        .call @create_mine              ; CALL $8F0F        ; Create mine
        .pop de                         ; POP DE            ; Restore coordinates
        .push de                        ; PUSH DE           ; Save coordinates
@@ -2592,7 +2598,7 @@ _8ec2:                                 ; >8ec2
        movb a,@mines_destroyed         ; LD ($7254),A      ; No mines destroyed
        ab   one,a                      ; INC A             ;
        movb a,@mine_countdown_to_shoot ; LD ($7269),A      ; Set countdown to shoot to 1
-       .call @_900e                    ; CALL $900E        ; Create shot from mine
+       .call @create_shot_from_mine    ; CALL $900E        ; Create shot from mine
        bl   @stage_data_addr           ; CALL $84DB        ; Get stage data address in IY
        movb @>05(iy),a                 ; LD A,(IY+$05)     ;
        movb a,@mines_time_left         ; LD ($7263),A      ;
@@ -2616,7 +2622,7 @@ create_mine:                           ; >8f0f
        movb h,@>05(iy)                 ; LD (IY+$05),H     ; Patterns address MSB
        movb d,@>07(iy)                 ; LD (IY+$07),D     ; Polar y
        movb @e,@>08(iy)                ; LD (IY+$08),E     ; Polar x
-       bl   @polar_to_screen          ; CALL $B1C6        ; Polar to screen
+       bl   @polar_to_screen           ; CALL $B1C6        ; Polar to screen
        movb d,a                        ; LD A,D            ; Screen y
        sb   @bytes+>04,a               ; SUB $04           ; Screen y - 4
        movb a,@>01(iy)                 ; LD (IY+$01),A     ; Save in structure
@@ -2636,7 +2642,7 @@ create_mine:                           ; >8f0f
        li   de,>0002                   ; LD DE,$0002       ; Update 2 color sets
        .pop bc                         ; POP BC            ; Restore color
        movb @c,a                       ; LD A,C            ; A = color
-       bl   @fill_vram                  ; CALL $1F82        ; FILL_VRAM
+       bl   @fill_vram                 ; CALL $1F82        ; FILL_VRAM
        movb @mine_name,a               ; LD A,($7268)      ; Get name
        movb a,@>06(iy)                 ; LD (IY+$06),A     ; Save in structure
        ab   @bytes+>10,a               ; ADD A,$10         ; Add 16 (when will this be used?)
@@ -2646,27 +2652,27 @@ create_mine:                           ; >8f0f
 * Display mines
 *
 * Used by the routine at #R$8E2D.
-_8f55:                                 ; >8f55
-       .call @_900e                    ; CALL $900E        ; Create shot from mine
+display_mines:                         ; >8f55
+       .call @create_shot_from_mine    ; CALL $900E        ; Create shot from mine
        li   iy,mines_background_data   ; LD IY,$7237       ; Mine data
        movb @bytes+>03,b               ; LD B,$03          ; 3 mines
-_8f5e:                                 ; >8f5e
+display_mines_1:                       ; >8f5e
        .push bc                        ; PUSH BC           ; Save counter
        movb @>04(iy),@l                ; LD L,(IY+$04)     ; Get patterns address LSB
        movb @>05(iy),h                 ; LD H,(IY+$05)     ; Get patterns address MSB
        movb h,a                        ; LD A,H            ; If zero
        socb @l,a                       ; OR L              ; ...
-       jeq  _8fc6                      ; JR Z,$8FC6        ; Then return
+       jeq  display_mines_3            ; JR Z,$8FC6        ; Then return
        movb @status_flags,a            ; LD A,($71EB)      ; Test died flag
        czc  @bit2,a                    ; BIT 2,A           ; ...
-       jne  _8fed                      ; JR NZ,$8FED       ; If we died then destroy mine
+       jne  destroy_mine               ; JR NZ,$8FED       ; If we died then destroy mine
        movb @destroy_mines_flag,a      ; LD A,($7265)      ; Test flag
        movb a,r0                       ; BIT 0,A           ; If set
        andi r0,>0100                   ;
-       jne  _8fed                      ; JR NZ,$8FED       ; Then destroy mine
+       jne  destroy_mine               ; JR NZ,$8FED       ; Then destroy mine
        movb @frame_counter,a           ; LD A,($71F2)      ; Frame counter
        andi a,>0700                    ; AND $07           ; If not every 8th frame
-       jne  _8fc6                      ; JR NZ,$8FC6       ; Then skip to next mine
+       jne  display_mines_3            ; JR NZ,$8FC6       ; Then skip to next mine
        movb @mines_movement_table_offset,a ; LD A,($7267)      ; Get table offset
        movb a,@c                       ; LD C,A            ; BC = A
        sb   b,b                        ; LD B,$00          ; ...
@@ -2692,7 +2698,7 @@ _8f5e:                                 ; >8f5e
        movb @l,@>04(iy)                ; LD (IY+$04),L     ; Save in structure
        movb h,@>05(iy)                 ; LD (IY+$05),H     ; ...
 * This entry point is used by the routine at #R$8FED.
-_8fae:                                 ; >8fae
+display_mines_2:                       ; >8fae
        movb @>07(iy),d                 ; LD D,(IY+$07)     ; Polar y
        movb @>08(iy),@e                ; LD E,(IY+$08)     ; Polar x
        bl   @polar_to_screen          ; CALL $B1C6        ; Polar to screen
@@ -2703,12 +2709,12 @@ _8fae:                                 ; >8fae
        sb   @bytes+>04,a               ; SUB $04           ; Screen x - 4
        movb a,*iy                      ; LD (IY+$00),A     ; Save in structure
        .call @display_background_patterns ; CALL $8B12        ; Display background patterns
-_8fc6:                                 ; >8fc6
+display_mines_3:                       ; >8fc6
        li   bc,>0009                   ; LD BC,$0009       ; Next mine
        a    bc,iy                      ; ADD IY,BC         ; ...
        .pop bc                         ; POP BC            ; Restore counter
        sb   one,b                      ; DJNZ $8F5E        ; Loop for 3 mines
-       jne  _8f5e                      ;
+       jne  display_mines_1            ;
        movb @frame_counter,a           ; LD A,($71F2)      ; Frame counter
        andi a,>0700                    ; AND $07           ; If not the 8th frame
        jeq  !                          ; RET NZ            ; Then return
@@ -2716,50 +2722,48 @@ _8fc6:                                 ; >8fc6
 !
        li   hl,mines_time_left         ; LD HL,$7263       ; Get countdown
        sb   one,*hl                    ; DEC (HL)          ; Decrement it
-       jne  _8fdf                      ; JR NZ,$8FDF       ; Return if not zero
+       jne  display_mines_4            ; JR NZ,$8FDF       ; Return if not zero
        li   hl,destroy_mines_flag      ; LD HL,$7265       ; Set flag to destroy mines
        socb @bits+0,*hl                ; SET 0,(HL)        ; ...
-_8fdf:                                 ; >8fdf
+display_mines_4:                       ; >8fdf
        movb @mines_movement_table_offset,a ; LD A,($7267)      ; Offset movement table offset
        ab   @bytes+>02,a               ; ADD A,$02         ; Add 2
        cb   a,@bytes+>10               ; CP $10            ; If < 16
-       jl   _8fe9                      ; JR C,$8FE9        ; Then update
+       jl   display_mines_5            ; JR C,$8FE9        ; Then update
        sb   a,a                        ; XOR A             ; Else reset
-_8fe9:                                 ; >8fe9
+display_mines_5:                       ; >8fe9
        movb a,@mines_movement_table_offset ; LD ($7267),A      ; Save offset
        .ret                            ; RET               ;
 
 * Destroy mine
 *
 * Used by the routine at #R$8F55.
-_8fed:                                 ; >8fed
+destroy_mine:                          ; >8fed
        sb   one,@>07(iy)               ; DEC (IY+$07)      ;
-       jne  _8fae                      ; JR NZ,$8FAE       ;
+       jne  display_mines_2            ; JR NZ,$8FAE       ;
        sb   @>04(iy),@>04(iy)          ; LD (IY+$04),$00   ;
        sb   @>05(iy),@>05(iy)          ; LD (IY+$05),$00   ;
        li   hl,total_enemies           ; LD HL,$7206       ; Decrement total enemies
        sb   one,*hl                    ; DEC (HL)          ; ...
        li   hl,mines_left              ; LD HL,$722D       ; Decrement mines left
        sb   one,*hl                    ; DEC (HL)          ; ...
-       jne  _8fae                      ; JR NZ,$8FAE       ;
+       jne  display_mines_2            ; JR NZ,$8FAE       ;
        li   hl,other_flags             ; LD HL,$7256       ; Clear mines flag
        szcb @bits+2,*hl                ; RES 2,(HL)        ; ...
        .call @init_mine_variables_2    ; CALL $8E8D        ;
-       jmp  _8fae                      ; JR $8FAE          ;
+       jmp  display_mines_2            ; JR $8FAE          ;
 
 * Create shot from mine
 *
 * Used by the routines at #R$8E9D and #R$8F55.
-_900e:                                 ; >900e
+create_shot_from_mine:                                 ; >900e
        li   hl,mine_countdown_to_shoot ; LD HL,$7269       ; Decrement countdown
        sb   one,*hl                    ; DEC (HL)          ; ...
-       jeq  !                          ; RET NZ            ; Return if not 0
-       .ret                            ;
-!
+       jne create_shot_from_mine_2     ; RET NZ            ; Return if not 0
        li   iy,mines_background_data   ; LD IY,$7237       ; Mine data
        movb @>04(iy),a                 ; LD A,(IY+$04)     ; Check if mine exists
        socb @>05(iy),a                 ; OR (IY+$05)       ; ...
-       jeq  _9039                      ; JR Z,$9039        ; Skip ahead if not
+       jeq  create_shot_from_mine_1    ; JR Z,$9039        ; Skip ahead if not
        li   hl,active_enemy_shots      ; LD HL,$7252       ; Increment enemy shots
        ab   one,*hl                    ; INC (HL)          ; ...
        bl   @allocate_sprite           ; RST $28           ; Allocate sprite
@@ -2770,12 +2774,13 @@ _900e:                                 ; >900e
        movb @>08(iy),a                 ; LD A,(IY+$08)     ; Set polar x to mine polar x
        movb a,@>02(ix)                 ; LD (IX+$02),A     ; ...
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern
-_9039:                                 ; >9039
+create_shot_from_mine_1:               ; >9039
        bl   @stage_data_addr           ; CALL $84DB        ; Get stage data address in IY
        bl   @ti_rnd                    ; RST $20           ; Random number
        andi a,>3f00                    ; AND $3F           ; 0-63
        ab   @>06(iy),a                 ; ADD A,(IY+$06)    ; Add ?
        movb a,@mine_countdown_to_shoot ; LD ($7269),A      ; Set countdown to random value
+create_shot_from_mine_2:
        .ret                            ; RET               ;
 
 * Mines movement table
