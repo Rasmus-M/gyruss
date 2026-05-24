@@ -3,8 +3,7 @@
 * Setup environment
 *
 ti_setup_environment:
-;       mov  @rndsd,@random_number
-       clr  @random_number
+       mov  @rndsd,@random_number
        li   one,>0100
        li   r0,>fffe
        mov  r0,@b255

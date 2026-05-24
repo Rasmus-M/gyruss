@@ -13,7 +13,6 @@ entry:                                 ; >8024
        .call @start_screen             ; CALL $90D6        ; Start screen
        li   hl,>2A30                   ; LD HL,$2A30       ; 180 * 60 frames
        mov  hl,@screensaver_countdown  ; LD ($7257),HL     ; Set screensaver countdown
-       jmp  new_game
 entry_wait_fire:                       ; >8047
        bl   @ti_wait_vsync             ; HALT              ; Wait for interrupt
        .call @display_stars            ; CALL $AFFF        ; Display stars
@@ -73,7 +72,7 @@ new_game:                              ; >8064
        movb @status_flags,a            ; LD A,($71EB)      ; Flags
        movb a,r0                       ; BIT 7,A           ; Test bit for two players
        andi r0,>8000                   ;
-       jeq  _80e0                      ; JR Z,$80E0        ; If bit is reset then skip ahead
+       jeq  new_game_1                 ; JR Z,$80E0        ; If bit is reset then skip ahead
        li   de,>181e                   ; LD DE,$181E       ; Display '-' at the top right corner
        movb @bytes+>2d,a               ; LD A,$2D          ; ...
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
@@ -86,7 +85,7 @@ new_game:                              ; >8064
        li   de,>1300                   ; LD DE,$1300       ; VDP address
        li   bc,active_enemies-lives    ; LD BC,$002D       ; 45 bytes
        bl    @write_vram               ; RST $38           ; WRITE_VRAM
-_80e0:                                 ; >80e0
+new_game_1:                            ; >80e0
 ;       movb r,a                        ; LD A,R            ; Random number seed
 ;       movb a,@random_number+>0001     ; LD ($731C),A      ; Init random number
        .call @init_stage               ; CALL $8212        ; Initialize stage
@@ -207,7 +206,7 @@ game_over_loop:                        ; >8192
        b    @wait_for_restart          ;
 !
        socb @bits+5,*hl                ; SET 5,(HL)        ; Else flag that one player game over
-       jmp  _81b9                      ; JR $81B9          ; And switch player
+       jmp  switch_player_1                      ; JR $81B9          ; And switch player
 
 * Switch player
 *
@@ -216,12 +215,12 @@ switch_player:                         ; >81ae
        movb @status_flags,a            ; LD A,($71EB)      ; Test for two players
        movb a,r0                       ; BIT 7,A           ; ...
        andi r0,>8000                   ;
-       jeq  _81e2                      ; JR Z,$81E2        ; Skip ahead if one player
+       jeq  switch_player_2            ; JR Z,$81E2        ; Skip ahead if one player
        movb *hl,r0                     ; BIT 5,(HL)        ; Is one player already game over?
        andi r0,>2000                   ;
-       jne  _81e2                      ; JR NZ,$81E2       ; Skip ahead if not set
+       jne  switch_player_2            ; JR NZ,$81E2       ; Skip ahead if not set
 * This entry point is used by the routine at #R$8170.
-_81b9:                                 ; >81b9
+switch_player_1:                       ; >81b9
        li   hl,buffer                  ; LD HL,$71A3       ; Restore player data from VDP RAM into buffer
        li   de,>1300                   ; LD DE,$1300       ; ...
        li   bc,>002d                   ; LD BC,$002D       ; ...
@@ -237,7 +236,7 @@ _81b9:                                 ; >81b9
        movb @current_player,a          ; LD A,($71F1)      ; Current player
        xor  one,a                      ; XOR $01           ; Switch player
        movb a,@current_player          ; LD ($71F1),A      ; Save again
-_81e2:                                 ; >81e2
+switch_player_2:                       ; >81e2
        .call @init_stage               ; CALL $8212        ; Initialize stage
        li   hl,other_flags             ; LD HL,$7256       ; Set flag
        socb @bits+5,*hl                ; SET 5,(HL)        ; ...
@@ -285,23 +284,23 @@ init_stage:                            ; >8212
 * Calculate stage data index
        movb @completed_stages,a        ; LD A,($7205)      ; Get completed stages
 ;       socb a,a                        ; OR A              ; Test if zero
-       jne  _823e                      ; JR NZ,$823E       ; If not, skip ahead to set max value
+       jne  init_stage_1               ; JR NZ,$823E       ; If not, skip ahead to set max value
        movb @stage,a                   ; LD A,($7200)      ; Stage
        cb   a,@bytes+>04               ; CP $04            ; Compare stage to 4
-       jhe  _8240                      ; JR NC,$8240       ; Jump if stage >= 4, to set value = stage / 4 + 1
+       jhe  init_stage_2               ; JR NC,$8240       ; Jump if stage >= 4, to set value = stage / 4 + 1
        movb a,b                        ; LD B,A            ; B = stage 1-3
        sb   a,a                        ; XOR A             ; A = 0
        sb   one,b                      ; DEC B             ; B = 0-2
-       jeq  _8245                      ; JR Z,$8245        ; If zero then skip ahead to save value
+       jeq  init_stage_3               ; JR Z,$8245        ; If zero then skip ahead to save value
        ab   one,a                      ; INC A             ; Stage = 2 or 3, set A = 1
-       jmp  _8245                      ; JR $8245          ; Skip ahead to save value
-_823e:                                 ; >823e
+       jmp  init_stage_3               ; JR $8245          ; Skip ahead to save value
+init_stage_1:                          ; >823e
        movb @bytes+>18,a               ; LD A,$18          ; 24
-_8240:                                 ; >8240
+init_stage_2:                          ; >8240
        srl  a,1                        ; SRL A             ; Divide stage by 4
        srl  a,1                        ; SRL A             ; ...
        ab   one,a                      ; INC A             ; + 1
-_8245:                                 ; >8245
+init_stage_3:                          ; >8245
        movb a,@stage_data_index        ; LD ($7203),A      ; Save value (0 - 7)
 * Display stage number
        movb @stage,a                   ; LD A,($7200)      ; Current stage
@@ -309,28 +308,28 @@ _8245:                                 ; >8245
        ab   *hl,a                      ; ADD A,(HL)        ; Add to stage
        li   de,>1afe                   ; LD DE,$1AFE       ; VDP address (stage number tens)
        cb   a,@bytes+>0a               ; CP $0A            ;
-       jl   _8267                      ; JR C,$8267        ; Jump if < 10
+       jl   init_stage_6               ; JR C,$8267        ; Jump if < 10
        sb   b,b                        ; LD B,$00          ; Divide by ten into B
-_8258:                                 ; >8258
+init_stage_4:                          ; >8258
        sb   @bytes+>0a,a               ; SUB $0A           ; ...
-       jlt  _825f                      ; JR C,$825F        ; ...
+       jlt  init_stage_5               ; JR C,$825F        ; ...
        ab   one,b                      ; INC B             ; ...
-       jmp  _8258                      ; JR $8258          ; ...
-_825f:                                 ; >825f
+       jmp  init_stage_4               ; JR $8258          ; ...
+init_stage_5:                          ; >825f
        ab   @bytes+>0a,a               ; ADD A,$0A         ; Restore ones
        movb a,@c                       ; LD C,A            ; Save in C
        movb b,a                        ; LD A,B            ; Tens
        ab   @bytes+>30,a               ; ADD A,$30         ; Add ASCII 0
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
        movb @c,a                       ; LD A,C            ; Ones
-_8267:                                 ; >8267
+init_stage_6:                          ; >8267
        inc  de                         ; INC DE            ; Increment VDP address to stage number ones
        ab   @bytes+>30,a               ; ADD A,$30         ; Add ASCII 0
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
 * Display X WARPS TO Y message
        movb @wave,a                    ; LD A,($7201)      ; Check whether you just died
 ;       socb a,a                        ; OR A              ; So we want to display READY instead
-       jne  _82ba                      ; JR NZ,$82BA       ; And if so jump ahead
+       jne  init_stage_8               ; JR NZ,$82BA       ; And if so jump ahead
        movb @stage,a                   ; LD A,($7200)      ; Get stage
        movb a,b                        ; LD B,A            ; Save in B
        srl  a,1                        ; SRL A             ; Divide by 2
@@ -348,7 +347,7 @@ _8267:                                 ; >8267
        movb b,a                        ; LD A,B            ; Restore stage
        andi a,>0300                    ; AND $03           ; Clamp to 0, 1, 2, 3
        cb   a,@bytes+>03               ; CP $03            ; If 3 we have reached a chance stage
-       jeq  _82bf                      ; JR Z,$82BF        ; Then jump ahead
+       jeq  init_stage_9               ; JR Z,$82BF        ; Then jump ahead
        li   r0,3*256                   ; XOR $03           ; Flip the bits, so we know how many warps TO the planet
        xor  r0,a                       ;
        ab   @bytes+>30,a               ; ADD A,$30         ; Add ASCII 0
@@ -357,9 +356,9 @@ _8267:                                 ; >8267
        li   hl,warps_msg               ; LD HL,$859C       ; WARPS message
        li   bc,>0005                   ; LD BC,$0005       ; Copy 5 bytes '_WARP'
        cb   a,@bytes+>31               ; CP $31            ; If the number is less than 2,
-       jeq  _82a0                      ; JR Z,$82A0        ; then skip ahead
+       jeq  init_stage_7               ; JR Z,$82A0        ; then skip ahead
        inc  bc                         ; INC BC            ; Otherwise copy one more byte '_WARPS'
-_82a0:                                 ; >82a0
+init_stage_7:                          ; >82a0
        equ  $
        .ldir                           ; LDIR              ; Make the copy
        li   hl,to_msg                  ; LD HL,$85A2       ; Copy _TO_ message
@@ -375,14 +374,14 @@ _82a0:                                 ; >82a0
        .ex_de_hl                       ; EX DE,HL          ; Now DE=length and HL=$71A4
        dec  hl                         ; DEC HL            ; HL=#R$71A3
        movb @e,*hl                     ; LD (HL),E         ; Set length
-       jmp  _82c3                      ; JR $82C3          ; Jump ahead
-_82ba:                                 ; >82ba
+       jmp  init_stage_10              ; JR $82C3          ; Jump ahead
+init_stage_8:                          ; >82ba
        li   hl,ready_msg               ; LD HL,$8589       ; Ready message
-       jmp  _82c3                      ; JR $82C3          ; Skip ahead
-_82bf:                                 ; >82bf
+       jmp  init_stage_10              ; JR $82C3          ; Skip ahead
+init_stage_9:                          ; >82bf
        .pop hl                         ; POP HL            ; Drop the pushed planet name address
        li   hl,chance_stage_msg        ; LD HL,$858F       ; Chance stage message
-_82c3:                                 ; >82c3
+init_stage_10:                         ; >82c3
        movb @bytes+>20,a               ; LD A,$20          ; At this point HL contains a pointer to the length
                                                            ; prefixed message to print
        sb   *hl,a                      ; SUB (HL)          ; 32 - string length
@@ -401,18 +400,18 @@ _82c3:                                 ; >82c3
        li   hl,completed_stages        ; LD HL,$7205       ; Add completed stages
        ab   *hl,a                      ; ADD A,(HL)        ; ...
        cb   a,one                      ; CP $01            ; If 1 then skip ahead with B = 0
-       jeq  _82f6                      ; JR Z,$82F6        ; ...
+       jeq  init_stage_11              ; JR Z,$82F6        ; ...
        andi a,>0300                    ; AND $03           ; Stage mod 4
        movb @bytes+>05,b               ; LD B,$05          ; Set B = 5
        cb   a,one                      ; CP $01            ; And skip ahead if stage mod 4 < 1
-       jl   _82f6                      ; JR C,$82F6        ; ...
+       jl   init_stage_11              ; JR C,$82F6        ; ...
        movb @bytes+>03,b               ; LD B,$03          ; Set B = 3
-       jeq  _82f6                      ; JR Z,$82F6        ; And skip ahead if stage mod 4 = 1
+       jeq  init_stage_11              ; JR Z,$82F6        ; And skip ahead if stage mod 4 = 1
        movb @bytes+>04,b               ; LD B,$04          ; Set B = 4
        cb   a,@bytes+>02               ; CP $02            ; And skip ahead if stage mod 4 = 2
-       jeq  _82f6                      ; JR Z,$82F6        ; ...
+       jeq  init_stage_11              ; JR Z,$82F6        ; ...
        movb @bytes+>06,b               ; LD B,$06          ; Set B = 6
-_82f6:                                 ; >82f6
+init_stage_11:                         ; >82f6
        movb b,a                        ; LD A,B            ; Set A = B
        .call @call_play_tune           ; CALL $9E91        ; Play selected tune
        .call @display_lives            ; CALL $A6D2        ; Display lives
@@ -440,7 +439,6 @@ display_player:                        ; >830e
 ;       socb a,a                        ; OR A              ; Is it player 1?
        jeq  display_player_1           ; RET Z             ; The return
        movb @bytes+>32,a               ; LD A,$32          ; ASCII 2
-       li   de,>1933                   ; LD DE,$1933       ; VDP address
        li   de,>1933                   ; LD DE,$1933       ; VDP address
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
 display_player_1:
@@ -885,9 +883,9 @@ process_sprites:                       ; >85e6
        sb   one,*hl                    ; DEC (HL)          ; ...
        movb @countdown_to_shoot,a      ; LD A,($71EF)      ; Decrement counter stopping at 0
        sb   one,a                      ; DEC A             ; ...
-       jlt  _85f8                      ; JP M,$85F8        ; ...
+       jlt  process_sprites_1          ; JP M,$85F8        ; ...
        movb a,@countdown_to_shoot      ; LD ($71EF),A      ; ...
-_85f8:                                 ; >85f8
+process_sprites_1:                     ; >85f8
        li   hl,other_flags             ; LD HL,$7256       ; Flags
        szcb @bits+4,*hl                ; RES 4,(HL)        ; Reset laser fence flag
        li   hl,sprite_allocation_table+>0002 ; LD HL,$7185       ; Table address #R$7183+2 (skip ship sprites)
@@ -4032,31 +4030,31 @@ move_dots:                             ; >a471
        movb @bytes+>20,b               ; LD B,$20          ; 32 sprites
        li   ix,sprite_data             ; LD IX,$7002       ; Sprite data
 * This entry point is used by the routine at #R$A4A0.
-_a47d:                                 ; >a47d
+move_dots_1:                           ; >a47d
        movb *ix,a                      ; LD A,(IX+$00)     ; Get type
        cb   a,@bytes+>0d               ; CP $0D            ; Is it $0D (a dot)?
-       jne  _a4a4                      ; JR NZ,$A4A4       ; If not then move to next sprite
+       jne  move_dots_4                ; JR NZ,$A4A4       ; If not then move to next sprite
        .push bc                        ; PUSH BC           ; Save counter
        movb @>01(ix),d                 ; LD D,(IX+$01)     ; Polar y
        movb @>02(ix),@e                ; LD E,(IX+$02)     ; Polar x
-       bl   @polar_to_screen          ; CALL $B1C6        ; Polar to screen
+       bl   @polar_to_screen           ; CALL $B1C6        ; Polar to screen
        movb d,@>08(ix)                 ; LD (IX+$08),D     ; Set y
        movb @e,@>09(ix)                ; LD (IX+$09),E     ; Set x
        movb @status_flags,a            ; LD A,($71EB)      ; Status
        movb a,r0                       ; BIT 2,A           ; Test bit
        andi r0,>0400                   ;
-       jne  _a4a0                      ; JR NZ,$A4A0       ; If 1, decrement polar y
+       jne  move_dots_2                ; JR NZ,$A4A0       ; If 1, decrement polar y
        ab   one,@>01(ix)               ; INC (IX+$01)      ; Else increment polar y
-       jmp  _a4a3                      ; JR $A4A3          ; Skip next
-_a4a0:                                 ; >a4a0
+       jmp  move_dots_3                ; JR $A4A3          ; Skip next
+move_dots_2:                           ; >a4a0
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
-_a4a3:                                 ; >a4a3
+move_dots_3:                           ; >a4a3
        .pop bc                         ; POP BC            ; Restore counter
-_a4a4:                                 ; >a4a4
+move_dots_4:                           ; >a4a4
        li   de,>000c                   ; LD DE,$000C       ; Size of each sprite
        a    de,ix                      ; ADD IX,DE         ; Next sprite
        sb   one,b                      ; DJNZ $A47D        ; Loop 32 times
-       jne  _a47d                      ;
+       jne  move_dots_1                      ;
        li   hl,>8060                   ; LD HL,$8060       ; Set #R$7000 back to original value
        mov  hl,@center_of_projection   ; LD ($7000),HL     ; ...
        .ret                            ; RET               ;
@@ -4079,13 +4077,13 @@ display_score:                         ; >a699
        movb @bytes+>04,@e              ; LD E,$04          ; Offset into name table player 1
 ;       socb a,a                        ; OR A              ; If it player 1
        movb a,a
-       jeq  _a6a8                      ; JR Z,$A6A8        ; The skip ahead
+       jeq  display_score_1            ; JR Z,$A6A8        ; The skip ahead
        li   ix,score_player_2          ; LD IX,$71F9       ; Score player 2
        movb @bytes+>18,@e              ; LD E,$18          ; Offset into name table player 2
-_a6a8:                                 ; >a6a8
+display_score_1:                       ; >a6a8
        movb @bytes+>18,d               ; LD D,$18          ; MSB of name table in VDP
        li   bc,>0300                   ; LD BC,$0300       ; B = 3 (digits), C = 0 (zero character offset)
-_a6ad:                                 ; >a6ad
+display_score_2:                       ; >a6ad
        movb @>02(ix),a                 ; LD A,(IX+$02)     ; Get 3rd score byte (most significant)
 ;       srl  a,1                        ; RRA               ; Shift BCD digit into place
 ;       srl  a,1                        ; RRA               ; ...
@@ -4102,7 +4100,7 @@ _a6bc:                                 ; >a6bc
        .call @display_digit            ; CALL $A6C8        ; Display least significant digit
        dec  ix                         ; DEC IX            ; Proceed to less significant score bytes
        sb   one,b                      ; DJNZ $A6AD        ; Loop 3 times
-       jne  _a6ad                      ;
+       jne  display_score_2                      ;
        .ret                            ; RET               ;
 
 * Display digit
@@ -4112,9 +4110,9 @@ _a6bc:                                 ; >a6bc
 * I:A Digit 0 - 9
 display_digit:                         ; >a6c8
        andi a,>0f00                    ; AND $0F           ; Isolate BCD digit
-       jeq  _a6ce                      ; JR Z,$A6CE        ; If zero, skip displaying leading zeros by not setting C
+       jeq  display_digit_1            ; JR Z,$A6CE        ; If zero, skip displaying leading zeros by not setting C
        movb @bytes+>30,@c              ; LD C,$30          ; Use ASCII 0 as zero character offset by default
-_a6ce:                                 ; >a6ce
+display_digit_1:                       ; >a6ce
        socb @c,a                       ; OR C              ; Add zero character offset
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
        inc  de                         ; INC DE            ; Next VDP address
@@ -4130,17 +4128,16 @@ display_lives:                         ; >a6d2
        bl   @fill_vram                  ; CALL $1F82        ; FILL_VRAM
        movb @lives,a                   ; LD A,($71FF)      ; Get lives
        sb   one,a                      ; DEC A             ; Display one less live
-       jne  !                          ; RET Z             ; Return if none to display
-       .ret                            ;
-!
+       jeq  display_lives_2            ; RET Z             ; Return if none to display
        movb a,b                        ; LD B,A            ; Count
        li   de,>1ae2                   ; LD DE,$1AE2       ; VDP address
        movb @bytes+>21,a               ; LD A,$21          ; Ship character
-_a6e7:                                 ; >a6e7
+display_lives_1:                       ; >a6e7
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte
        inc  de                         ; INC DE            ; Next VDP address
        sb   one,b                      ; DJNZ $A6E7        ; Loop
-       jne  _a6e7                      ;
+       jne  display_lives_1            ;
+display_lives_2:
        .ret                            ; RET               ;
 
 * Add points to score
@@ -4163,7 +4160,6 @@ add_score:                             ; >a6ec
 add_score_1:                           ; >a6fd
        .push de                        ; PUSH DE           ; Save pointer to score
        li   hl,points_to_add           ; LD HL,$72C8       ; Pointer to points to add
-
        movb @bytes+>03,b               ; LD B,$03          ; 3 bytes in score
        clr  r1
 add_score_2:                           ; >a703
@@ -4228,9 +4224,7 @@ add_score_5:                           ; >a739
 control_ship:                          ; >a73c
        movb @frame_counter,a           ; LD A,($71F2)      ; Get frame counter
        andi a,>0100                    ; AND $01           ; Test bit 0
-       jeq  !                          ; RET NZ            ; Return every 2nd frame
-       .ret                            ;
-!
+       jne  control_ship_5             ; RET NZ            ; Return every 2nd frame
 ;       mov  @countdown_to_wave,hl      ; LD HL,($71F0)     ; Controller: #R$71F1
        movb  @current_player,h
        sb   @l,@l                      ; LD L,$00          ; Segment 0
@@ -4244,22 +4238,22 @@ control_ship:                          ; >a73c
        movb *hl,a                      ; LD A,(HL)         ; Get table value, which is the value of polar x to move
                                                            ; towards
        cb   a,@b255                    ; CP $FF            ; Is it an impossible joystick value, e.g. up + down?
-       jeq  _a781                      ; JR Z,$A781        ; Then skip ahead
+       jeq  control_ship_3             ; JR Z,$A781        ; Then skip ahead
        sb   @>02(ix),a                 ; SUB (IX+$02)      ; Table value - polar x
-       jeq  _a781                      ; JR Z,$A781        ; If zero then skip ahead (already there)
-       jgt  _a766                      ; JR NC,$A766       ; If positive skip ahead
+       jeq  control_ship_3             ; JR Z,$A781        ; If zero then skip ahead (already there)
+       jgt  control_ship_1             ; JR NC,$A766       ; If positive skip ahead
        movb @b255,b                    ; LD B,$FF          ; Direction = -1 (anti-clockwise)
        andi af,>ff00
        neg a                           ; NEG               ; abs(value - polar x)
-_a766:                                 ; >a766
+control_ship_1:                        ; >a766
 ;       cb   a,@bytes+>21               ; CP $21            ; Is the difference < 33?
        movb a,r0
        movb b,a                        ; LD A,B            ; Direction
        cb   r0,@bytes+>21
-       jl   _a76d                      ; JR C,$A76D        ; Then skip ahead
+       jl   control_ship_2             ; JR C,$A76D        ; Then skip ahead
        andi af,>ff00
        neg a                           ; NEG               ; Otherwise reverse direction
-_a76d:                                 ; >a76d
+control_ship_2:                        ; >a76d
        ab   @>02(ix),a                 ; ADD A,(IX+$02)    ; Polar x + direction
        andi a,>3f00                    ; AND $3F           ; Mod 64
        movb a,@>02(ix)                 ; LD (IX+$02),A     ; Update polar x
@@ -4269,13 +4263,11 @@ _a76d:                                 ; >a76d
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern sprite 1
        .call @display_ship_bg_patterns ; CALL $A808        ; Display ship background patterns
 * Handle fire
-_a781:                                 ; >a781
+control_ship_3:                        ; >a781
        movb @status_flags,a            ; LD A,($71EB)      ; Test stage init flag
        movb a,r0                       ; BIT 4,A           ; Return if set
        andi r0,>1000                   ;
-       jeq  !                          ; RET NZ            ; ...
-       .ret                            ;
-!
+       jne  control_ship_5             ; RET NZ            ; ...
 ;       mov  @countdown_to_wave,hl      ; LD HL,($71F0)     ; Controller: #R$71F1
        movb  @current_player,h
        .push hl                        ; PUSH HL           ; Save current player
@@ -4294,19 +4286,15 @@ _a781:                                 ; >a781
        jeq  clear_fire_pressed         ; JR Z,$A805        ; If not, clear bit for fire pressed, and return
        movb *hl,r0                     ; BIT 0,(HL)        ; Check if fire was pressed last time
        andi r0,>0100                   ;
-       jeq  !                          ; RET NZ            ; Then return (must release after each shot)
-       .ret                            ;
-!
+       jne  control_ship_5             ; RET NZ            ; Then return (must release after each shot)
        movb @active_shots,a            ; LD A,($7253)      ; Get number of active shots
        movb *hl,r0                     ; BIT 1,(HL)        ; Test for double shot
        andi r0,>0200                   ;
-       jeq  _a7ad                      ; JR Z,$A7AD        ; Skip ahead if single shot
+       jeq  control_ship_4             ; JR Z,$A7AD        ; Skip ahead if single shot
        srl  a,1                        ; SRL A             ; Divide by 2 (allow twice as many shots)
-_a7ad:                                 ; >a7ad
+control_ship_4:                        ; >a7ad
        cb   a,@bytes+>02               ; CP $02            ; Return if >= 2
-       jl   !                          ; RET NC            ; ...
-       .ret                            ;
-!
+       jhe  control_ship_5             ; RET NC            ; ...
 ;       sb   a,a                        ; LD A,$00          ; No effect
 ;       nop                             ; NOP               ; Some instructions removed here?
 ;       nop                             ; NOP               ; ...
@@ -4327,6 +4315,7 @@ _a7ad:                                 ; >a7ad
        movb @sprite_data+2,@>02(ix)    ; Shot x = ship x
        movb @bytes+>02,*ix             ; LD (IX+$00),$02   ; Shot type
        movb @bytes+>0a,@>0b(ix)        ; LD (IX+$0B),$0A   ; Set color (yellow)
+control_ship_5:
        .ret                            ; RET               ; Return
 
 * Fire double shot
