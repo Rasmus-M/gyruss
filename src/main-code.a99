@@ -5617,23 +5617,20 @@ display_star_frame_4:                  ; >b046
 * O:E Screen x
 * O:Carry flag set if out of screen
 polar_to_screen:                       ; >b1c6
-       .push ix                        ; PUSH IX           ;
-       .push hl                        ; PUSH HL           ;
-       .push bc                        ; PUSH BC           ;
        clr  @carry
        movb @bytes+>0b,a               ; LD A,$0B          ; 11
        ab   d,a                        ; ADD A,D           ; Polar y + 11
        jlt  polar_to_screen_5          ; JP M,$B217        ; If this is 128 or more (polar y > 116 or polar y <
                                                            ; -11), then set position outside screen and return
-       movb a,@l                       ; LD L,A            ; Calculate table address, with polar y = -11
+       movb a,@r1lb                    ; LD L,A            ; Calculate table address, with polar y = -11
                                                            ; corresponding to row 0
-       sb   h,h                        ; LD H,$00          ; and polar y = 0 corresponding to row 11
+       sb   r1,r1                        ; LD H,$00          ; and polar y = 0 corresponding to row 11
 ;       a    hl,hl                      ; ADD HL,HL         ; (y + 11) * 32
 ;       a    hl,hl                      ; ADD HL,HL         ; ...
 ;       a    hl,hl                      ; ADD HL,HL         ; ...
 ;       a    hl,hl                      ; ADD HL,HL         ; ...
 ;       a    hl,hl                      ; ADD HL,HL         ; ...
-       sla  hl,5
+       sla  r1,5
        movb @e,a                       ; LD A,E            ; x
        czc  @bit4,a                    ; BIT 4,E           ; Is bit 4 set (top left or lower right quadrants)?
        jeq  polar_to_screen_1          ; JR Z,$B1DE        ; Jump if not
@@ -5647,13 +5644,14 @@ polar_to_screen_1:                     ; >b1de
 ;       ab   one,h                      ; INC H             ; ...
 ;_b1e6:                                 ; >b1e6
        swpb a
-       a    a,hl
-       li   bc,polar_to_screen_table   ; LD BC,$B21D       ; Lookup table base address
-       a    bc,hl                      ; ADD HL,BC         ; Add to address
-       movb *hl,a                      ; LD A,(HL)         ; Get table value
+       a    a,r1
+;       li   bc,polar_to_screen_table   ; LD BC,$B21D       ; Lookup table base address
+;       a    bc,hl                      ; ADD HL,BC         ; Add to address
+       ai   r1,polar_to_screen_table
+       movb *r1,a                      ; LD A,(HL)         ; Get table value
        cb   a,@b255                    ; CP $FF            ; If $FF
        jeq  polar_to_screen_5          ; JR Z,$B217        ; Then set position outside screen and return
-       li   ix,center_of_projection    ; LD IX,$7000       ; Center of projection
+;      li   ix,center_of_projection    ; LD IX,$7000       ; Center of projection
        movb @e,a                       ; LD A,E            ; x
        movb a,r0
        srl  a,1                        ; RRCA              ; Shift right
@@ -5661,23 +5659,25 @@ polar_to_screen_1:                     ; >b1de
        xor  r0,a                                           ; left/lower right) were different, i.e. top of screen
        movb a,r0                       ; BIT 4,A           ; Test bit 4 (top of screen)
        clr  af
-       movb *hl,a                      ; LD A,(HL)         ; Get table value
+       movb *r1+,a                     ; LD A,(HL)         ; Get table value
        czc  @bit4,r0
        jeq  polar_to_screen_2          ; JR Z,$B1FD        ; Skip negating if not top of screen
-       andi af,>ff00
+;       andi af,>ff00
        neg a                           ; NEG               ; -table value
 polar_to_screen_2:                     ; >b1fd
-       ab   @>01(ix),a                 ; ADD A,(IX+$00)    ; +center y ($60) (changed since high endian)
+;      ab   @>01(ix),a                 ; ADD A,(IX+$00)    ; +center y ($60) (changed since high endian)
+       ab   @center_of_projection+1,a  ; ADD A,(IX+$00)    ; +center y ($60) (changed since high endian)
        sb   @bytes+>04,a               ; SUB $04           ; -4 (adjust for sprite size)
        movb a,d                        ; LD D,A            ; Store as sprite y
-       inc  hl                         ; INC HL            ; Next table address
-       movb *hl,a                      ; LD A,(HL)         ; Get table value
+;       inc  hl                         ; INC HL            ; Next table address
+       movb *r1,a                      ; LD A,(HL)         ; Get table value
        czc  @bit5l,de                  ; BIT 5,E           ; Test bit 5 of x (left/right)
        jne  polar_to_screen_3          ; JR NZ,$B20B       ; Skip negating if right
-       andi af,>ff00
+;       andi af,>ff00
        neg a                           ; NEG               ; -table value
 polar_to_screen_3:                     ; >b20b
-       ab   *ix,a                      ; ADD A,(IX+$01)    ; +center x ($80 or $B5 or ?) (changed since high endian)
+;       ab   *ix,a                      ; ADD A,(IX+$01)    ; +center x ($80 or $B5 or ?) (changed since high endian)
+       ab   @center_of_projection,a
        sb   @bytes+>04,a               ; SUB $04           ; -4 (adjust for sprite size)
        movb a,@e                       ; LD E,A            ; Store as sprite x
 ;       socb a,a                        ; OR A              ; Clear carry flag
@@ -5686,9 +5686,6 @@ polar_to_screen_5:                     ; >b217
        li   de,>f500                   ; LD DE,$F500       ; Set return position outside screen
        seto @carry                     ; SCF               ; Set carry flag
 polar_to_screen_4:                      ; >b212
-       .pop bc                         ; POP BC            ; Return
-       .pop hl                         ; POP HL            ; ...
-       .pop ix                         ; POP IX            ; ...
        rt                            ; RET               ; ...
 
 ;* Random number generator (RST $20)
