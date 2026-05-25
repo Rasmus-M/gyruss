@@ -265,6 +265,9 @@ active_enemies:                        ; >722c
 mines_left:                            ; >722d
        byte >00
 
+clear_ram_stage:
+       equ  $
+
 * Ship background data
 ship_background_data:                  ; >722e
        byte >00,>00,>00,>00,>00,>00,>00,>00,>00
@@ -325,6 +328,9 @@ clear_ram_end:
 * TABLE#
 ;other_flags:                           ; >7256
        byte >00
+
+clear_ram_stage_end:
+       equ  $
 
 * Countdown to screen off
 screensaver_countdown:                 ; >7257
