@@ -190,7 +190,7 @@ game_over_loop:                        ; >8192
        .pop bc                         ; POP BC            ; ...
        sb   one,b                      ; DJNZ $8192        ; ...
        jne  game_over_loop             ;
-       .call @clear_rows_9_and_14      ; CALL $84ED        ; Clear rows 9 and 14
+       bl   @clear_rows_9_and_14      ; CALL $84ED        ; Clear rows 9 and 14
        li   hl,status_flags            ; LD HL,$71EB       ; Test for two players
        movb *hl,r0                     ; BIT 7,(HL)        ; ...
        andi r0,>8000                   ;
@@ -475,7 +475,7 @@ stage_completed_loop:                     ; >833e
        sb   one,b                      ; DJNZ $833E        ; Loop for 90 frames
        jne  stage_completed_loop          ;
        bl    @stop_tune                ; CALL $9B87        ; Stop tune
-       .call @clear_rows_9_and_14      ; CALL $84ED        ; Clear rows 9 and 14
+       bl   @clear_rows_9_and_14      ; CALL $84ED        ; Clear rows 9 and 14
        movb @stage,a                   ; LD A,($7200)      ; Stage
        andi a,>0300                    ; AND $03           ; Stage mod 4
        cb   a,@bytes+>02               ; CP $02            ; If not planet reached (2)
@@ -519,7 +519,7 @@ warp_loop:                             ; >838a
        cb   a,@bytes+>12               ; CP $12            ; Is polar y 18?
        jne  stage_completed_6          ; JR NZ,$83B2       ; No, skip ahead
        .push af                        ; PUSH AF           ;
-       .call @clear_row_7              ; CALL $920D        ; Clear row 7 (planet name)
+       bl   @clear_row_7               ; CALL $920D        ; Clear row 7 (planet name)
        .pop af                         ; POP AF            ;
 stage_completed_6:                     ; >83b2
        cb   a,@bytes+>2b               ; CP $2B            ; Is polar y 43?
@@ -738,6 +738,7 @@ stage_data_addr:                       ; >84db
 *
 * Used by the routines at #R$8170 and #R$832A.
 clear_rows_9_and_14:                   ; >84ed
+       .proc
        li   hl,>1920                   ; LD HL,$1920       ; Name table row 9
        li   de,>0020                   ; LD DE,$0020       ; 32 bytes
        sb   a,a                        ; XOR A             ; Clear
@@ -746,7 +747,7 @@ clear_rows_9_and_14:                   ; >84ed
        li   de,>0020                   ; LD DE,$0020       ; 32 bytes
        sb   a,a                        ; XOR A             ; Clear
        bl   @fill_vram                 ; JP $1F82          ; FILL_VRAM
-       .ret
+       .endproc
 
 ;* Interrupt routine
 ;*
@@ -2847,7 +2848,7 @@ logo_letter:                           ; >912a
        movb @bytes+>06,a               ; LD A,$06          ; Planet number
        .call @display_planet           ; CALL $9175        ; Draw planet 6 (Earth)
        .call @upload_sprite_data       ; CALL $ACF9        ; Upload sprite data
-       .call @clear_row_7              ; CALL $920D        ; Clear row 7
+       bl   @clear_row_7               ; CALL $920D        ; Clear row 7
        li   hl,copyright_msg           ; LD HL,$92AC       ; Copyright message
        li   de,>1ae4                   ; LD DE,$1AE4       ; Name table address
        li   bc,>0017                   ; LD BC,$0017       ; 23 bytes
@@ -2910,7 +2911,7 @@ display_planet:                        ; >9175
 *
 * Used by the routine at #R$9175.
 erase_planet:                          ; >91a1
-       .call @clear_row_7              ; CALL $920D        ; Clear row 7
+       bl   @clear_row_7               ; CALL $920D        ; Clear row 7
        li   hl,buffer                  ; LD HL,$71A3       ; Clear 16 bytes in RAM
        li   de,buffer+>0001            ; LD DE,$71A4       ; ...
        li   bc,>000f                   ; LD BC,$000F       ; ...
@@ -2946,7 +2947,7 @@ _91bb:                                 ; >91bb
 * I:HL Address of planet name prefixed by length
 display_planet_name_and_sprites:       ; >91cc
        .push hl                        ; PUSH HL           ; Save address
-       .call @clear_row_7              ; CALL $920D        ; clear_row_7 where the planet name is displayed
+       bl   @clear_row_7               ; CALL $920D        ; clear_row_7 where the planet name is displayed
        movb @bytes+>20,a               ; LD A,$20          ; 32
        sb   *hl,a                      ; SUB (HL)          ; 32 - length
        srl  a,1                        ; SRL A             ; (32 - length) / 2
@@ -2997,23 +2998,25 @@ _920a:                                 ; >920a
 * Where the planet name is displayed Used by the routines at #R$832A, #R$90D6,
 * #R$91A1 and #R$91CC.
 clear_row_7:                           ; >920d
+       .proc
        .push hl                        ; PUSH HL           ;
        .push de                        ; PUSH DE           ;
        .push bc                        ; PUSH BC           ;
        sb   a,a                        ; LD A,$00          ; Space
        li   hl,>18e0                   ; LD HL,$18E0       ; Address in name table (row 7)
        li   de,>0020                   ; LD DE,$0020       ; 32 bytes
-       bl   @fill_vram                  ; CALL $1F82        ; FILL_VRAM
+       bl   @fill_vram                 ; CALL $1F82        ; FILL_VRAM
        .pop bc                         ; POP BC            ;
        .pop de                         ; POP DE            ;
        .pop hl                         ; POP HL            ;
-       .ret                            ; RET               ;
+       .endproc                        ; RET               ;
 
 * Decompress and upload patterns
 *
 * Decompress and upload patterns to VDP buffer at $1400. Used by the routine at
 * #R$90D6.
 decompress_patterns:                   ; >921f
+       .proc
        li   hl,>0279                   ; LD HL,$0279       ; Number of bytes in block at $9475
        mov  hl,@decompress_length      ; LD ($726A),HL     ; Save it
        sb   a,a                        ; XOR A             ; A = 0
@@ -3021,39 +3024,39 @@ decompress_patterns:                   ; >921f
        li   hl,planet_graphics-1       ; LD HL,$9474       ; #R$9475 - 1
        li   de,>1400                   ; LD DE,$1400       ; Destination address in VDP RAM
 * This entry point is used by the routine at #R$924E.
-_922f:                                 ; >922f
+decompress_patterns_1:                                 ; >922f
 ;       movb @decompress_length,a       ; LD A,($726B)      ; MSB of counter
 ;       socb a,a                        ; OR A              ; Test MSB
        mov  @decompress_length,r0
-       jgt  !                          ; RET M             ; Return when MSB is negative
-       .ret                            ;
-!
+       jlt  decompress_patterns_3      ; RET M             ; Return when MSB is negative
        movb one,b                      ; LD B,$01          ; Read 1 bit
-       .call @read_B_bits_into_a       ; CALL $9257        ; Read it into A
+       bl   @read_B_bits_into_a        ; CALL $9257        ; Read it into A
 ;       socb a,a                        ; OR A              ; If zero, write multiple bytes
        movb a,a
        jne  decompress_write_single_byte ; JR NZ,$924E       ; Otherwise jump to write a single byte
        movb @bytes+>05,b               ; LD B,$05          ; Read 5 bits
-       .call @read_B_bits_into_a       ; CALL $9257        ; Read them into A
+       bl   @read_B_bits_into_a        ; CALL $9257        ; Read them into A
        ab   @bytes+>02,a               ; ADD A,$02         ; Add 2 as the base
        .push af                        ; PUSH AF           ; Save number of repeats
-       .call @read_8_bits_into_a       ; CALL $9255        ; Get byte to write in A
+       bl   @read_8_bits_into_a        ; CALL $9255        ; Get byte to write in A
        .pop bc                         ; POP BC            ; Restore number of repeats
-_9248:                                 ; >9248
+decompress_patterns_2:                                 ; >9248
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte in A to DE
        inc  de                         ; INC DE            ; Next VDP address
        sb   one,b                      ; DJNZ $9248        ; Loop B times
-       jne  _9248                      ;
-       jmp  _922f                      ; JR $922F          ; Loop
+       jne  decompress_patterns_2                      ;
+       jmp  decompress_patterns_1                      ; JR $922F          ; Loop
+decompress_patterns_3:
+       .endproc
 
 * Write single byte
 *
 * Used by the routine at #R$921F.
 decompress_write_single_byte:          ; >924e
-       .call @read_8_bits_into_a       ; CALL $9255        ; Get byte to write
+       bl   @read_8_bits_into_a       ; CALL $9255        ; Get byte to write
        bl   @vdp_write_byte            ; RST $10           ; Write VDP byte in A to DE
        inc  de                         ; INC DE            ; Next VDP address
-       jmp  _922f                      ; JR $922F          ; Loop
+       jmp  decompress_patterns_1                      ; JR $922F          ; Loop
 
 * Read B bits into A
 *
@@ -3063,13 +3066,13 @@ read_8_bits_into_a:                    ; >9255
 * This entry point is used by the routine at #R$921F.
 read_B_bits_into_a:                    ; >9257
        sb   a,a                        ; XOR A             ; Result
-_9258:                                 ; >9258
+read_B_bits_into_a_1:                  ; >9258
        .push bc                        ; PUSH BC           ; Push number of bits to read
        .push af                        ; PUSH AF           ; Push result
        movb @decompress_bits_left,a    ; LD A,($726C)      ; Number of bits left in current byte
        sb   one,a                      ; DEC A             ; Decrement
-       jgt  _9271                      ; JP P,$9271        ; Skip ahead if there are still bits left
-       jeq  _9271                      ; JP P,$9271        ; Skip ahead if there are still bits left
+       jgt  read_B_bits_into_a_2       ; JP P,$9271        ; Skip ahead if there are still bits left
+       jeq  read_B_bits_into_a_2       ; JP P,$9271        ; Skip ahead if there are still bits left
        inc  hl                         ; INC HL            ; Increment source address
        movb *hl,a                      ; LD A,(HL)         ; get source byte
        movb a,@decompress_source_byte  ; LD ($726D),A      ; Save source byte
@@ -3078,7 +3081,7 @@ _9258:                                 ; >9258
 ;       mov  bc,@decoder_length         ; LD ($726A),BC     ; And save
        dec  @decompress_length
        movb @bytes+>07,a               ; LD A,$07          ; 8 bits - 1 left
-_9271:                                 ; >9271
+read_B_bits_into_a_2:                  ; >9271
        movb a,@decompress_bits_left    ; LD ($726C),A      ; Save bits left
 ;       movb @decoder_source_byte,a     ; LD A,($726D)      ; Get source byte
 ;       sla  a,1                        ; RLA               ; Rotate left through carry
@@ -3093,8 +3096,8 @@ _9271:                                 ; >9271
        movb @f,@decompress_source_byte
        .pop bc                         ; POP BC            ; Pop number of bits to read
        sb   one,b                      ; DJNZ $9258        ; Repeat for n bits
-       jne  _9258                      ;
-       .ret                            ; RET               ;
+       jne  read_B_bits_into_a_1                      ;
+       rt                              ; RET               ;
 
 * Copy 135 patterns
 *
