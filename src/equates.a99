@@ -72,7 +72,7 @@ sound_player_countdown:
 tune_index:
        equ  sound_player_countdown+1
 tune_data_buffer_1:
-       equ  tune_index+1
+       equ  tune_index+1+1             ; Word align
 tune_data_buffer_2:
        equ  tune_data_buffer_1+10
 tune_data_buffer_3:
