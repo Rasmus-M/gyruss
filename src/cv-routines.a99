@@ -9,7 +9,7 @@ mode_1:
        .proc
        li   r0,>0000
        bl   @vwtr
-       li   r0,>01e0
+       li   r0,>01a0
        bl   @vwtr
        li   r0,>0701
        bl   @vwtr
