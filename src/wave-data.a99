@@ -9,7 +9,7 @@
 * { $03 | Bits 0-3: index into the table at #R$A57E, which determines the start polar y; bits 4-7: color of the sprites }
 * TABLE#
 wave_init_data:                        ; >a4be
-       byte >A8,>18,>83,>50
+       byte >A8,>18,>80,>50
        byte >A0,>10,>80,>E0
        byte >B0,>20,>80,>A0
        byte >88,>38,>80,>80

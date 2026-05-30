@@ -1361,9 +1361,10 @@ move_towards_viewer:                   ; >8825
        ab   one,@>05(ix)               ; INC (IX+$05)      ; Mark for pattern reload
        sb   one,@>01(ix)               ; DEC (IX+$01)      ; Decrement polar y
        movb @>01(ix),a                 ; LD A,(IX+$01)     ; Get polar y
+       jgt  !                          ; Not in original code
        cb   a,@bytes+>f2               ; CP $F2            ; Return if not $F2 (-14)
-       jeq  handle_out_of_screen       ; RET NZ            ; Else continue into #R$8835
-       .endproc                        ;
+       jl   handle_out_of_screen       ; RET NZ            ; Else continue into #R$8835
+!      .endproc                        ;
 
 * Enemy movement: Determine action when out of screen
 *
@@ -5015,7 +5016,7 @@ allocate_sprite_3:                     ; >ad75
        .pop ix                         ; POP IX            ; IX now holds sprite address
        movb @zero,@>07(ix)             ; LD (IX+$07),$00   ; Init sprite
        movb @zero,@>03(ix)             ; LD (IX+$03),$00   ; Set counter to 0
-       movb @b255,@>04(ix)             ; LD (IX+$04),$FF   ; Set loaded patten index to none
+       movb @b255,@>04(ix)             ; LD (IX+$04),$FF   ; Set loaded pattern index to none
        movb @bytes+>f8,@>08(ix)        ; LD (IX+$08),$F8   ; Set y
 allocate_sprite_4:                     ; >ad87
        .pop bc                         ; POP BC            ;
