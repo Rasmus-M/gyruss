@@ -1084,9 +1084,9 @@ sprite_handler_04_0c:
        movb @bytes+>0c,*ix             ; LD (IX+$00),$0C   ; Set type if new sprite (number 00)
        movb @bytes+>3c,@>03(ix)        ; LD (IX+$03),$3C   ; Counter
        movb @bytes+>0f,@>0b(ix)        ; LD (IX+$0B),$0F   ; Set color
-       sb   @>01(ix),@>01(ix)          ; LD (IX+$01),$00   ; Set polar y
-       sb   @>02(ix),@>02(ix)          ; LD (IX+$02),$00   ; Set polar x
-       sb   @>06(ix),@>06(ix)          ; LD (IX+$06),$00   ; No replacement type
+       movb @zero,@>01(ix)             ; LD (IX+$01),$00   ; Set polar y
+       movb @zero,@>02(ix)             ; LD (IX+$02),$00   ; Set polar x
+       movb @zero,@>06(ix)             ; LD (IX+$06),$00   ; No replacement type
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern
        movb @>08(iy),a                 ; LD A,(IY+$08)     ; Get screen y of old sprite
        movb a,@>08(ix)                 ; LD (IX+$08),A     ; Set screen y of new sprite
@@ -1516,8 +1516,9 @@ update_sprite_path:                    ; >88fe
 ;       socb a,a                        ; OR A              ;
        jne  update_sprite_path_4       ; RET NZ            ;
        bl   @maybe_create_enemy_shot  ; CALL $8A76        ; Create enemy shot
-       movb @>06(ix),@l                ; LD L,(IX+$06)     ; Get path address
-       movb @>07(ix),h                 ; LD H,(IX+$07)     ; ...
+;       movb @>06(ix),@l                ; LD L,(IX+$06)     ; Get path address
+;       movb @>07(ix),h                 ; LD H,(IX+$07)     ; ...
+       mov  @>06(ix),hl
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
 * This entry point is used by the routine at #R$892B.
 update_sprite_path_1:                  ; >890f
@@ -1529,8 +1530,9 @@ update_sprite_path_1:                  ; >890f
 * This entry point is used by the routine at #R$8986.
 update_sprite_path_2:                  ; >8916
        inc  hl                         ; INC HL            ; Else increment path address
-       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Set path address
-       movb h,@>07(ix)                 ; LD (IX+$07),H     ; ...
+;       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Set path address
+;       movb h,@>07(ix)                 ; LD (IX+$07),H     ; ...
+       mov  hl,@>06(ix)
        movb *hl,a                      ; LD A,(HL)         ; Get path byte
        cb   a,@bytes+>10               ; CP $10            ; If upper nybble >= 1
        jhe  update_sprite_path_3       ; JR NC,$892B       ; Then jump ahead to update counter
@@ -1673,8 +1675,9 @@ sprite_handler_18_19:                  ; >89b8
        jeq  !                          ; RET NZ            ; ...
        .endproc                        ;
 !
-       movb @>06(ix),@l                ; LD L,(IX+$06)     ; Get path address
-       movb @>07(ix),h                 ; LD H,(IX+$07)     ; ...
+;       movb @>06(ix),@l                ; LD L,(IX+$06)     ; Get path address
+;       movb @>07(ix),h                 ; LD H,(IX+$07)     ; ...
+       mov  @>06(ix),hl
        movb @>03(ix),a                 ; LD A,(IX+$03)     ; Get counter
        movb a,r0
        sb   @bytes+>10,a               ; SUB $10           ; Decrement upper nybble
@@ -1693,8 +1696,9 @@ sprite_handler_18_19:                  ; >89b8
        andi a,>0f00                    ; AND $0F           ; And apply upper nybble
        socb b,a                        ; OR B              ; ...
        movb a,@>03(ix)                 ; LD (IX+$03),A     ; ...
-       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Set path address
-       movb h,@>07(ix)                 ; LD (IX+$07),H     ; ... (continue into #R$89EB)
+;       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Set path address
+;       movb h,@>07(ix)                 ; LD (IX+$07),H     ; ... (continue into #R$89EB)
+       mov  hl,@>06(ix)
 
 * Circular enemy movement: Move sprite along path
 *
@@ -2201,7 +2205,7 @@ handle_wave_outcoming:                 ; >8c68
        .endproc                        ;
 !
 * This entry point is used by the routine at #R$8C52.
-handle_wave_outcoming_1:                                 ; >8c6d
+handle_wave_outcoming_1:               ; >8c6d
        mov  @wave_data_address,iy      ; LD IY,($725D)     ; Get wave data address
        .push iy                        ; PUSH IY           ; Save pointer
        movb @>02(iy),a                 ; LD A,(IY+$02)     ; Get byte 3
@@ -2269,8 +2273,9 @@ handle_wave_outcoming_3:               ; >8ccf
 ;       movb *hl,h                      ; LD H,(HL)         ; Get MSB
 ;       movb a,@l                       ; LD L,A            ; L = LSB
        mov  *hl,hl
-       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Store in sprite data (pointer to path data)
-       movb h,@>07(ix)                 ; LD (IX+$07),H     ; ...
+;       movb @l,@>06(ix)                ; LD (IX+$06),L     ; Store in sprite data (pointer to path data)
+;       movb h,@>07(ix)                 ; LD (IX+$07),H     ; ...
+       mov  hl,@>06(ix)
        movb *hl,a                      ; LD A,(HL)         ; Get first byte
        andi a,>f000                    ; AND $F0           ; Isolate bits 4-7
        movb a,b                        ; LD B,A            ; Store in B
@@ -3515,8 +3520,9 @@ shot_hit_sprite_enemy:                 ; >9934
 shot_hit_sprite_enemy_1:               ; >9936
        bl   @call_play_sound           ; CALL $9EA3        ; Play sound
        .push ix                        ; PUSH IX           ; Save shot address
-       .push iy                        ; PUSH IY           ; Save enemy address
-       .pop ix                         ; POP IX            ; IX = enemy address
+;       .push iy                        ; PUSH IY           ; Save enemy address
+;       .pop ix                         ; POP IX            ; IX = enemy address
+       mov  iy,ix
        bl   @deallocate_sprite_from_map ; CALL $AB53        ; Deallocate from map
        .pop ix                         ; POP IX            ; IX = shot address
        movb @bytes+>7f,*iy             ; LD (IY+$00),$7F   ; Set enemy sprite type to unallocated
@@ -3556,9 +3562,9 @@ add_points_from_enemy:                 ; >9978
        ab   one,a                      ; INC A             ; +1
        movb *hl,r0                     ; BIT 3,(HL)        ; Check for chance stage
        andi r0,>0800                   ;
-       jne  _998d                      ; JR NZ,$998D       ; Skip ahead if chance stage
+       jne  add_points_from_enemy_1    ; JR NZ,$998D       ; Skip ahead if chance stage
        movb a,@enemies_hit             ; LD ($7202),A      ; Save if not chance stage
-_998d:                                 ; >998d
+add_points_from_enemy_1:               ; >998d
        ab   a,a                        ; ADD A,A           ; x2
        li   hl,score_table             ; LD HL,$9AA7       ; Score table
        bl   @add_a_to_hl               ; RST $08           ; Add A to HL
@@ -3666,7 +3672,7 @@ remove_shot:                           ; >9a1c
        movb d,@>0b(ix)                 ; LD (IX+$0B),D     ; Set color
        movb @bytes+>0f,@>03(ix)        ; LD (IX+$03),$0F   ; Set animation counter
        movb @b255,@>04(ix)             ; LD (IX+$04),$FF   ; Set loaded patten index to none
-       sb   @>06(ix),@>06(ix)          ; LD (IX+$06),$00   ;
+       movb @zero,@>06(ix)             ; LD (IX+$06),$00   ;
        li   hl,active_shots            ; LD HL,$7253       ; Decrement active shots
        sb   one,*hl                    ; DEC (HL)          ; ...
        li   hl,total_enemies           ; LD HL,$7206       ; Decrement total enemies (hmm, why here?)
@@ -3707,7 +3713,7 @@ ship_hit_enemy:                        ; >9a49
        movb @bytes+>04,*ix             ; LD (IX+$00),$04   ; Set sprite type to destroyed
        movb @bytes+>0f,@>03(ix)        ; LD (IX+$03),$0F   ; Set animation counter
        movb @b255,@>04(ix)             ; LD (IX+$04),$FF   ; Set loaded patten index to none
-       sb   @>06(ix),@>06(ix)          ; LD (IX+$06),$00   ;
+       movb @zero,@>06(ix)             ; LD (IX+$06),$00   ;
        bl   @load_sprite_pattern_fast  ; RST $30           ; Load sprite pattern
 * This entry point is used by the routine at #R$9A75.
 ship_hit_enemy_1:                      ; >9a69
