@@ -49,8 +49,10 @@ b255:
        equ  stack+>30
 b254:
        equ  b255+1
-carry:
+int_counter:
        equ  b254+1
+carry:
+       equ  int_counter+2
 status_flags:
        equ  carry+2
 other_flags:
